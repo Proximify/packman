@@ -1,0 +1,21 @@
+{
+    "name": "proximify/component-template",
+    "description": "Template for the creation of component packages.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Proximify Inc",
+            "email": "support@proximify.ca"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Proximify\\": "src"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=7.1.0"
+    }
+}
