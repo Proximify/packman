@@ -11,7 +11,7 @@
     ],
     "autoload": {
         "psr-4": {
-            "Proximify\\Composer\\": "src"
+            "Proximify\\ComposerPlugin\\": "src"
         }
     },
     "minimum-stability": "dev",
@@ -19,8 +19,7 @@
         "php": ">=7.2.0",
         "composer-plugin-api": "^2.0"
     },
-    
     "extra": {
-        "class": "Proximify\\Composer\\PM"
+        "class": "Proximify\\ComposerPlugin\\Loader"
     }
 }
