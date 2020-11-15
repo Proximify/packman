@@ -21,6 +21,9 @@ class CommandProvider implements CommandProviderCapability
     }
 }
 
+/**
+ * @link https://github.com/symfony/symfony/blob/5.x/src/Symfony/Component/Console/Output/OutputInterface.php
+ */
 class Command extends BaseCommand
 {
     protected function configure()

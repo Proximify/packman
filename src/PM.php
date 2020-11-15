@@ -9,14 +9,18 @@
 namespace Proximify\ComposerPlugin;
 
 use Exception;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Package Manager
- *
+ * 
+ * https://github.com/composer/composer/
  * @see composer/src/Composer/Plugin/PluginInterface.php
  */
 class PM
 {
+    const OUTPUT_DIR = 'private-packages';
     private $handle;
     private $domain;
 
@@ -30,13 +34,16 @@ class PM
         $this->stopServer();
     }
 
-    public function startServer($port = '8081', $target = 'public')
+    public function startServer($port = '8081', $target = self::OUTPUT_DIR)
     {
         if ($this->handle) {
             return $this->handle;
         }
 
         $this->domain = "localhost:$port";
+
+        echo "\nCreating server at $this->domain...\n";
+
         $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
 
         return $this->handle;
@@ -57,20 +64,32 @@ class PM
             echo "\nThere is no satis.json\n";
         }
 
-        $cmd = 'php vendor/bin/satis build satis.json private-packages';
+        // -n (or --no-interaction) is used to use the ssh key of the machine
+        // instead of asking for a token.
+        $ourDir = self::OUTPUT_DIR;
+        $cmd = "php vendor/bin/satis build satis.json '$ourDir' -n";
 
-        print_r($cmd);
-        $status = self::execute($cmd);
+        print_r("\nCOMMAND: $cmd ...\n");
+
+        $options = [
+            'stderr' => fopen('php://stderr', 'w')
+        ];
+
+        $status = self::execute($cmd, $options);
 
         print_r($status);
     }
 
-    protected static function execute(string $cmd, ?string $cwd = null, ?array $env = null): array
+    protected static function execute(string $cmd, array $options = []): array
     {
+        $cwd = $options['cwd'] ?? null;
+        $env = $options['env'] ?? null;
+        $errPipe = $options['stderr'] ?? null;
+
         $descriptor = [
             0 => ['pipe', 'r'], // stdin
             1 => ['pipe', 'w'], // stdout
-            2 => ['pipe', 'w'], // stderr
+            2 => $errPipe ?: ['pipe', 'w'], // stderr
         ];
 
         $process = proc_open($cmd, $descriptor, $pipes, $cwd, $env);
@@ -83,7 +102,12 @@ class PM
         fclose($pipes[1]);
 
         $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
+
+        if (!$errPipe) {
+            echo "\nCLOSING 2\n";
+            fclose($pipes[2]);
+            echo "\nCLOSED 2\n";
+        }
 
         return [
             'out' => trim($stdout),
