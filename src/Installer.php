@@ -28,6 +28,7 @@ class Installer implements InstallerInterface
      */
     public function supports($packageType)
     {
+        // library, composer-plugin, etc
         echo "TYPE:$packageType";
         return false;
     }

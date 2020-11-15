@@ -21,6 +21,9 @@ use Composer\Plugin\PluginInterface;
  */
 class Loader implements PluginInterface
 {
+    private $handle;
+    private $domain;
+
     /**
      * @inheritDoc
      * Apply plugin modifications to Composer
@@ -35,6 +38,8 @@ class Loader implements PluginInterface
      */
     public function activate(Composer $composer, IOInterface $io)
     {
+        $this->startServer();
+
         echo "\nACTIVATE\n";
         $installer = new Installer($io, $composer);
         $composer->getInstallationManager()->addInstaller($installer);
@@ -53,6 +58,8 @@ class Loader implements PluginInterface
      */
     public function deactivate(Composer $composer, IOInterface $io)
     {
+        echo "\nDE-ACTIVATE\n";
+        $this->stopServer();
     }
 
     /**
@@ -66,5 +73,27 @@ class Loader implements PluginInterface
      */
     public function uninstall(Composer $composer, IOInterface $io)
     {
+        echo "\nUN-INSTALL\n";
+    }
+
+    function startServer($port = '8081', $target = 'public')
+    {
+        if ($this->handle) {
+            return $this->handle;
+        }
+
+        $this->domain = "localhost:$port";
+        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
+
+        return $this->handle;
+    }
+
+    function stopServer()
+    {
+        if ($this->handle) {
+            echo 'CLOSING';
+            proc_close($this->handle);
+            $this->handle = null;
+        }
     }
 }
