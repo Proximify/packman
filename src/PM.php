@@ -6,58 +6,89 @@
  * @license   MIT
  */
 
-namespace Proximify\Composer;
+namespace Proximify\ComposerPlugin;
 
-use Composer\Composer;
-use Composer\IO\IOInterface;
-use Composer\Plugin\PluginInterface;
+use Exception;
 
 /**
  * Package Manager
- * 
+ *
  * @see composer/src/Composer/Plugin/PluginInterface.php
  */
-class PM implements PluginInterface
+class PM
 {
-    /**
-     * @inheritDoc
-     * Apply plugin modifications to Composer
-     *
-     * @param Composer    $composer
-     * @param IOInterface $io
-     */
-    public function activate(Composer $composer, IOInterface $io)
+    private $handle;
+    private $domain;
+
+    public function __construct()
     {
-        echo "\nACTIVATE\n";
-        // $installer = new TemplateInstaller($io, $composer);
-        // $composer->getInstallationManager()->addInstaller($installer);
+        $this->startServer();
     }
 
-    /**
-     * @inheritDoc
-     * Remove any hooks from Composer
-     *
-     * This will be called when a plugin is deactivated before being
-     * uninstalled, but also before it gets upgraded to a new version
-     * so the old one can be deactivated and the new one activated.
-     *
-     * @param Composer    $composer
-     * @param IOInterface $io
-     */
-    public function deactivate(Composer $composer, IOInterface $io)
+    public function __destruct()
     {
+        $this->stopServer();
     }
 
-    /**
-     * @inheritDoc
-     * Prepare the plugin to be uninstalled
-     *
-     * This will be called after deactivate.
-     *
-     * @param Composer    $composer
-     * @param IOInterface $io
-     */
-    public function uninstall(Composer $composer, IOInterface $io)
+    public function startServer($port = '8081', $target = 'public')
     {
+        if ($this->handle) {
+            return $this->handle;
+        }
+
+        $this->domain = "localhost:$port";
+        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
+
+        return $this->handle;
+    }
+
+    public function stopServer()
+    {
+        if ($this->handle) {
+            echo 'CLOSING';
+            proc_close($this->handle);
+            $this->handle = null;
+        }
+    }
+
+    public function updateSatis()
+    {
+        if (!is_file('satis.json')) {
+            echo "\nThere is no satis.json\n";
+        }
+
+        $cmd = 'php vendor/bin/satis build satis.json private-packages';
+
+        print_r($cmd);
+        $status = self::execute($cmd);
+
+        print_r($status);
+    }
+
+    protected static function execute(string $cmd, ?string $cwd = null, ?array $env = null): array
+    {
+        $descriptor = [
+            0 => ['pipe', 'r'], // stdin
+            1 => ['pipe', 'w'], // stdout
+            2 => ['pipe', 'w'], // stderr
+        ];
+
+        $process = proc_open($cmd, $descriptor, $pipes, $cwd, $env);
+
+        if (!$process) {
+            throw new Exception("Cannot execute command");
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+
+        return [
+            'out' => trim($stdout),
+            'err' => trim($stderr),
+            'code' => proc_close($process)
+        ];
     }
 }

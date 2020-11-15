@@ -11,6 +11,7 @@ namespace Proximify\ComposerPlugin;
 use Composer\Composer;
 use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
+use Composer\Plugin\Capable;
 
 /**
  * Package Manager
@@ -19,11 +20,8 @@ use Composer\Plugin\PluginInterface;
  * @see function addInstaller at https://github.com/composer/composer/blob/4b4a3937eaa31c42dd905829fe1b04f4c94ab334/src/Composer/Installer/InstallationManager.php
  * @see InstallerInterface https://github.com/composer/composer/blob/4b8e77b2da9515f3462431dd5953e2560811263a/src/Composer/Installer/InstallerInterface.php
  */
-class Loader implements PluginInterface
+class Loader implements PluginInterface, Capable
 {
-    private $handle;
-    private $domain;
-
     /**
      * @inheritDoc
      * Apply plugin modifications to Composer
@@ -38,11 +36,9 @@ class Loader implements PluginInterface
      */
     public function activate(Composer $composer, IOInterface $io)
     {
-        $this->startServer();
-
         echo "\nACTIVATE\n";
-        $installer = new Installer($io, $composer);
-        $composer->getInstallationManager()->addInstaller($installer);
+        // $installer = new Installer($io, $composer);
+        // $composer->getInstallationManager()->addInstaller($installer);
     }
 
     /**
@@ -59,7 +55,6 @@ class Loader implements PluginInterface
     public function deactivate(Composer $composer, IOInterface $io)
     {
         echo "\nDE-ACTIVATE\n";
-        $this->stopServer();
     }
 
     /**
@@ -76,24 +71,18 @@ class Loader implements PluginInterface
         echo "\nUN-INSTALL\n";
     }
 
-    function startServer($port = '8081', $target = 'public')
+    /**
+     * @inheritDoc
+     * Declare the capabilities of the plugin. This method must return an array, 
+     * with the key as a Composer Capability class name, and the value as the
+     * Plugin's own implementation class name of said Capability/
+     *
+     * @return void
+     */
+    public function getCapabilities()
     {
-        if ($this->handle) {
-            return $this->handle;
-        }
-
-        $this->domain = "localhost:$port";
-        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
-
-        return $this->handle;
-    }
-
-    function stopServer()
-    {
-        if ($this->handle) {
-            echo 'CLOSING';
-            proc_close($this->handle);
-            $this->handle = null;
-        }
+        return [
+            'Composer\Plugin\Capability\CommandProvider' => 'Proximify\ComposerPlugin\CommandProvider',
+        ];
     }
 }

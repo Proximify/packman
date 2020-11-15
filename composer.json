@@ -21,6 +21,7 @@
         "composer/satis": "dev-master"
     },
     "extra": {
-        "class": "Proximify\\ComposerPlugin\\Loader"
+        "class": "Proximify\\ComposerPlugin\\Loader",
+        "plugin-modifies-downloads": true
     }
 }
