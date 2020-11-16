@@ -1,6 +1,6 @@
 {
     "name": "proximify/packman",
-    "description": "Composer plugin for managing private packages.",
+    "description": "Composer plugin for managing private packages using a local packaging server.",
     "type": "composer-plugin",
     "license": "MIT",
     "authors": [

@@ -22,6 +22,8 @@ use Composer\Plugin\Capable;
  */
 class Loader implements PluginInterface, Capable
 {
+    const PROMPT = Packman::YELLOW_CIRCLE . ' ';
+
     /**
      * @inheritDoc
      * Apply plugin modifications to Composer
@@ -36,7 +38,8 @@ class Loader implements PluginInterface, Capable
      */
     public function activate(Composer $composer, IOInterface $io)
     {
-        echo "\nACTIVATE\n";
+        $io->write(self::PROMPT . "Packman...", true);
+
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
     }
@@ -54,7 +57,7 @@ class Loader implements PluginInterface, Capable
      */
     public function deactivate(Composer $composer, IOInterface $io)
     {
-        echo "\nDE-ACTIVATE\n";
+        $io->write(self::PROMPT . "Packman is done", true);
     }
 
     /**
@@ -68,7 +71,7 @@ class Loader implements PluginInterface, Capable
      */
     public function uninstall(Composer $composer, IOInterface $io)
     {
-        echo "\nUN-INSTALL\n";
+        $io->write(self::PROMPT . "Uninstalling Packman...", true);
     }
 
     /**

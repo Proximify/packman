@@ -40,9 +40,10 @@ class Command extends BaseCommand
 
     function __construct(string $name)
     {
-        parent::BaseCommand();
-
+        // Do this BEFORE calling the parent constructor
         $this->cmdName = $name;
+
+        parent::__construct();
     }
 
     protected function configure()
@@ -61,13 +62,7 @@ class Command extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $pm = new Packman();
-
-        switch ($this->cmdName) {
-            case 'packman-init':
-                return $pm->init();
-            case 'packman-update':
-                return $pm->updateSatis();
-        }
+        (new Packman())->runCommand($this->cmdName, $output);
+        echo "DONE1";
     }
 }
