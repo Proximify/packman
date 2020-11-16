@@ -17,15 +17,25 @@ class CommandProvider implements CommandProviderCapability
 {
     public function getCommands()
     {
-        return [new Command];
+        $names = [Command::INIT_CMD, Command::UPDATE_CMD];
+        $commands = [];
+
+        foreach ($names as $name) {
+            $commands[] = new Command($name);
+        }
+
+        return $commands;
     }
 }
 
 /**
- * @link https://github.com/symfony/symfony/blob/5.x/src/Symfony/Component/Console/Output/OutputInterface.php
+ * One class for several Packman plugin commands.
  */
 class Command extends BaseCommand
 {
+    const INIT_CMD = 'packman-init';
+    const UPDATE_CMD = 'packman-update';
+
     private $cmdName;
 
     function __construct(string $name)
@@ -40,11 +50,18 @@ class Command extends BaseCommand
         $this->setName($this->cmdName);
     }
 
+    /**
+     * Execute the plugin command. 
+     * 
+     * @param InputInterface $input
+     * @param OutputInterface $output Console output. 
+     * E.g. $output->writeln('Executing ...');
+     * @link https://github.com/symfony/symfony/blob/5.x/src/Symfony/Component/Console/Output/OutputInterface.php
+     * @return void
+     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $pm = new Packman();
-
-        // $output->writeln('Executing ...');
 
         switch ($this->cmdName) {
             case 'packman-init':

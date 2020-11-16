@@ -9,14 +9,9 @@
 namespace Proximify\ComposerPlugin;
 
 use Exception;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Package Manager
- *
- * https://github.com/composer/composer/
- * @see composer/src/Composer/Plugin/PluginInterface.php
  */
 class Packman
 {

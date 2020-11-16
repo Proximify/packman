@@ -1,5 +1,5 @@
 {
-    "name": "proximify/pm",
+    "name": "proximify/packman",
     "description": "Composer plugin for managing private packages.",
     "type": "composer-plugin",
     "license": "MIT",
