@@ -1,14 +1,42 @@
-# Component Template
+<p align="center">
+  <img src="docs/assets/proximify_packman.svg" width="300px" alt="proximify packman plugin">
+</p>
+
+# Packman
+
+Composer plugin for managing private packages using a local packaging server.
+
+## How it works
+
+The plugin reads the composer.json of the root project an assumes that required packages with the same namespace than that of the root project should be managed by a **local packaging server**.
+
+### Steps
+
+1. Read composer.json and search for requirements in the same namespace than the root project.
+2. Create a [Satis](https://composer.github.io/satis/) repository in the sub-folder **private_packages** with the selected packages.
+3. Start a PHP buil-in web server on the **private_packages** folder at http://localhost:8081`.
+
+## Getting started
+
+The plugin includes CLI commands to setup `composer.json` so that it can fetch packages from the local packaging server.
+
+Run
+
+```bash
+$ composer packman-init --interactive
+```
+
+to get an interactive version of the initialization step that props for some basic configuration options.
+
+## About Satis
+
+This plugin uses the [Satis](https://composer.github.io/satis/) repository generator (see [using satis]([How-to](https://composer.github.io/satis/using))).
 
 ---
 
 ## Contributing
 
-This project welcomes contributions and suggestions. Most contributions require you to agree to a Contributor License Agreement (CLA) declaring that you have the right to and actually do, grant us the rights to use your contribution. For details, visit our [Contributor License Agreement](https://github.com/Proximify/community/blob/master/docs/proximify-contribution-license-agreement.pdf).
-
-When you submit a pull request, we will determine whether you need to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions provided. You will only need to do this once across all repositories using our CLA.
-
-This project has adopted the [Proximify Open Source Code of Conduct](https://github.com/Proximify/community/blob/master/docs/code_of_conduct.md). For more information see the Code of Conduct FAQ or contact support@proximify.com with any additional questions or comments.
+This project welcomes contributions and suggestions.
 
 ## License
 

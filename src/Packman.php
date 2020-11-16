@@ -14,11 +14,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Package Manager
- * 
+ *
  * https://github.com/composer/composer/
  * @see composer/src/Composer/Plugin/PluginInterface.php
  */
-class PM
+class Packman
 {
     const OUTPUT_DIR = 'private-packages';
     private $handle;
@@ -34,28 +34,8 @@ class PM
         $this->stopServer();
     }
 
-    public function startServer($port = '8081', $target = self::OUTPUT_DIR)
+    public function init()
     {
-        if ($this->handle) {
-            return $this->handle;
-        }
-
-        $this->domain = "localhost:$port";
-
-        echo "\nCreating server at $this->domain...\n";
-
-        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
-
-        return $this->handle;
-    }
-
-    public function stopServer()
-    {
-        if ($this->handle) {
-            echo 'CLOSING';
-            proc_close($this->handle);
-            $this->handle = null;
-        }
     }
 
     public function updateSatis()
@@ -78,6 +58,30 @@ class PM
         $status = self::execute($cmd, $options);
 
         print_r($status);
+    }
+
+    protected function startServer($port = '8081', $target = self::OUTPUT_DIR)
+    {
+        if ($this->handle) {
+            return $this->handle;
+        }
+
+        $this->domain = "localhost:$port";
+
+        echo "\nCreating server at $this->domain...\n";
+
+        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
+
+        return $this->handle;
+    }
+
+    protected function stopServer()
+    {
+        if ($this->handle) {
+            echo 'CLOSING';
+            proc_close($this->handle);
+            $this->handle = null;
+        }
     }
 
     protected static function execute(string $cmd, array $options = []): array
@@ -103,6 +107,7 @@ class PM
 
         $stderr = stream_get_contents($pipes[2]);
 
+        // Only close the pipe of it was not given
         if (!$errPipe) {
             echo "\nCLOSING 2\n";
             fclose($pipes[2]);

@@ -26,17 +26,31 @@ class CommandProvider implements CommandProviderCapability
  */
 class Command extends BaseCommand
 {
+    private $cmdName;
+
+    function __construct(string $name)
+    {
+        parent::BaseCommand();
+
+        $this->cmdName = $name;
+    }
+
     protected function configure()
     {
-        $this->setName('get-repos');
+        $this->setName($this->cmdName);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $pm = new PM();
+        $pm = new Packman();
 
-        $output->writeln('Executing get-repos...');
+        // $output->writeln('Executing ...');
 
-        $pm->updateSatis();
+        switch ($this->cmdName) {
+            case 'packman-init':
+                return $pm->init();
+            case 'packman-update':
+                return $pm->updateSatis();
+        }
     }
 }

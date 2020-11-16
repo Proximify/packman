@@ -1,6 +1,6 @@
 {
     "name": "proximify/pm",
-    "description": "Package manager.",
+    "description": "Composer plugin for managing private packages.",
     "type": "composer-plugin",
     "license": "MIT",
     "authors": [
