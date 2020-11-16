@@ -18,14 +18,26 @@ The plugin reads the `composer.json` of the root project an assumes that require
 
 ## Getting started
 
-The plugin includes CLI commands to setup `composer.json` so that it can fetch packages from the local packaging server.
+Add the plugin to the development dependencies of your project or globally (recommended)
+
+```bash
+# Local install
+$ composer require proximify/packman --dev
+```
+
+```bash
+# Global install
+$ composer require proximify/packman --global
+```
+
+The plugin includes CLI commands to setup `composer.json` so that it can fetch packages from the local packaging server. The `packman-init` commands must be run at least once before attempting to fetch private packages. That is, run it before running `composer install` to get the packages of the project.
 
 Run
 
 ```bash
 $ composer packman-init
 ```
-to setup your project using the default values for all [parameters](#parameters).
+to setup your project using the default values for all [parameters](#parameters) (the alt notation `init-packman` works too).
 
 Custom parameter values can be set in the `composer.json` under the `extras` property. For example,
 
@@ -41,9 +53,11 @@ Custom parameter values can be set in the `composer.json` under the `extras` pro
 }
 ```
 
-The parameter values for the plugin must added to the `composer.json` before running `packman-init`. It is okay to re-run `packman-init` whenever the parameters change.
+The parameter values for the plugin must added to the `composer.json` before running **packman-init**. It is okay to re-run **packman-init** whenever the parameters change.
 
-If the protocol of the `localUrl` is `http` instead of `https`, `packman-init` edits the `composer.json` file and adds `secure-http: false` to the [config]([secure-http](https://getcomposer.org/doc/06-config.md#secure-http)) property.
+The **packman-init** command will be edit the `composer.json` file in order to 
+
+If the protocol of the **localUrl** is http instead of https, **packman-init** edits the `composer.json` file and adds `secure-http: false` to the [config]([secure-http](https://getcomposer.org/doc/06-config.md#secure-http)) property.
 
 ```json
 // composer.json
@@ -60,12 +74,11 @@ If the protocol of the `localUrl` is `http` instead of `https`, `packman-init` e
 
 ## Parameters
 
-| Parameter    | Default value           | Description                                          |
-| ------------ | ----------------------- | ---------------------------------------------------- |
-| namespace    | `{ROOT-NAMESPACE}`      | The namespace of the required packages to manage     |
-| baseRepoUrl  | `https://github.com/`   | Base URL of the repository where packages are hosted |
-| baseRepoName | `namespace`             | The repo name to append to the `baseRepoUrl`         |
-| localUrl     | `http://localhost:8081` | The URL of the local packaging server                |
+| Parameter | Default value                         | Description                                                                           |
+| --------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| namespace | `{ROOT-NAMESPACE}`                    | The namespace of the private packages to manage                                       |
+| remoteUrl | `https://github.com/{ROOT-NAMESPACE}` | Base URL of the repository hosting servers where the private repositories are located |
+| localUrl  | `http://localhost:8081`               | The URL to be used for the local server of Composer packages                          |
 
 
 

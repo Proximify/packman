@@ -46,8 +46,10 @@ class Packman
 
         switch ($name) {
             case 'packman-init':
+            case 'init-packman':
                 return $this->init();
             case 'packman-update':
+            case 'update-packman':
                 return $this->updateSatis();
         }
     }
