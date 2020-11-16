@@ -10,6 +10,7 @@ namespace Proximify\ComposerPlugin;
 
 use Composer\Plugin\Capability\CommandProvider as CommandProviderCapability;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Command\BaseCommand;
 
@@ -40,7 +41,8 @@ class Command extends BaseCommand
 
     function __construct(string $name)
     {
-        // Do this BEFORE calling the parent constructor
+        // Do this BEFORE calling the parent constructor because the base
+        // constructor calls configure().
         $this->cmdName = $name;
 
         parent::__construct();
@@ -49,6 +51,7 @@ class Command extends BaseCommand
     protected function configure()
     {
         $this->setName($this->cmdName);
+        // $this->addArgument('ssh', InputArgument::OPTIONAL, true);
     }
 
     /**
@@ -62,7 +65,6 @@ class Command extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand($this->cmdName, $output);
-        echo "DONE1";
+        (new Packman())->runCommand($this->cmdName, $input, $output);
     }
 }
