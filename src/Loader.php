@@ -44,7 +44,7 @@ class Loader implements PluginInterface, Capable
 
         $this->packman = new Packman();
 
-        $this->packman->startServer($composer);
+        $this->packman->start($composer);
 
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);

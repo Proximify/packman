@@ -25,70 +25,74 @@ class Packman
     const OUTPUT_DIR = 'private-packages';
     const SATIS_FILE = 'satis.json';
 
+    /**
+     * @var int Counter of Packman current instances. Used to remove
+     * static assets.
+     */
+    private static $instanceCount = 0;
+
     /** @var mixed Handle for a web server process. */
     private static $handle;
-    // private static $composer;
+    private static $composer;
 
     private $output;
     private $settings;
     private $localUrl;
     private $remoteUrl;
     private $namespace;
+    private $satisConfig;
 
     public function __construct()
     {
+        self::$instanceCount++;
     }
 
     public function __destruct()
     {
-        $this->stopServer();
+        self::$instanceCount--;
+
+        if (self::$instanceCount == 0) {
+            self::$composer = null;
+            $this->stopServer();
+        }
     }
 
-    /**
-     * Start the web server.
-     *
-     * @return void
-     */
-    public function startServer(?Composer $composer = null)
+    public function start(?Composer $composer = null)
     {
-        $target = self::OUTPUT_DIR;
+        if ($composer) {
+            self::$composer = $composer;
+        }
 
-        if (self::$handle || !is_dir($target)) {
+        // Always read the composer file to init properties
+        $this->readComposerFile();
+        $this->updateSatis();
+
+        if (!$this->needsServer()) {
             return;
         }
 
-        // if ($composer) {
-        //     $this->composer = $composer;
-        // }
-
-        $this->readComposerFile();
-
-        $url = parse_url($this->localUrl);
-
-        $host = $url['host'] ?? 'localhost';
-        $port = $url['port'] ?? 80;
-
-        $url = "$host:$port";
-
-        $this->writeln("Creating web server at $url from $target...");
-
-        $cmd = "php -S $url -t '$target'";
-
-        $this->writeln($cmd);
-
-        self::$handle = proc_open($cmd, [], $pipes);
+        if ($this->checkComposerFile()) {
+            $this->startServer();
+        } else {
+            $this->writeln("Please run 'composer packman-init'", 1);
+        }
     }
 
     public function runCommand(string $name, InputInterface $input, OutputInterface $output)
     {
         $this->output = $output;
 
+        // Always read the composer file to init properties
+        $this->readComposerFile();
+
+        // The server and the composer object are set by a different Packman
+        // object in static properties, so they are available to the object
+        // created for answering CLI commands.
+        // $this->start();
+
         // The command name is also at: $input->getOption('command');
         // $options = $input->getArguments();
         // print_r($options);
-
-        $this->startServer();
-
         // $this->writeln("Executing '$name'...");
 
         switch ($name) {
@@ -99,6 +103,31 @@ class Packman
             case 'update-packman':
                 return $this->updateSatis();
         }
+    }
+
+    public function needsServer()
+    {
+        $url = $this->satisConfig['homepage'] ?? false;
+        $require = $this->satisConfig['require'] ?? false;
+
+        return ($url && $require);
+    }
+
+    public function checkComposerFile()
+    {
+        $homepage = strtolower($this->satisConfig['homepage']);
+        $repos = $this->settings['repositories'] ?? [];
+
+        foreach ($repos as $repo) {
+            $type = strtolower($repo['type'] ?? '');
+            $url = strtolower($repo['url'] ?? '');
+
+            if ($type == 'composer' && $url == $homepage) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function initComposerFile()
@@ -112,7 +141,12 @@ class Packman
         if (!is_file(self::SATIS_FILE)) {
             $this->writeln("There is no satis.json");
         }
-        sleep(30);
+
+        // Check if the satis file defines a homepage and requirements
+        if (!$this->needsServer()) {
+            return;
+        }
+
         $options = [];
 
         $ourDir = self::OUTPUT_DIR;
@@ -129,36 +163,76 @@ class Packman
 
         if ($changed && is_dir($ourDir)) {
             $cmd = "rm -rf '$ourDir' && $cmd";
+            $this->writeln("Recomputing all private packages...");
+        } else {
+            $this->writeln("Refreshing private packages...");
         }
 
-        $this->writeln("Running: $cmd ...");
-
         $status = self::execute($cmd, $options);
+        $code = $status['code'];
 
         if ($status['out']) {
-            $this->writeln($status['out']);
+            $this->writeln($status['out'], $code);
         }
 
         if ($status['err']) {
-            $this->writeln($status['err'], $status['code']);
+            $this->writeln($status['err'], $code);
         }
 
-        // The server might be able to start now if it didn't before
-        // e.g. due to a missing document root folder
-        $this->startServer();
+        $this->writeln("Packages update complete", $code);
+    }
+
+    /**
+     * Start the web server.
+     *
+     * @return void
+     */
+    protected function startServer()
+    {
+        $target = self::OUTPUT_DIR;
+
+        if (self::$handle || !is_dir($target)) {
+            return;
+        }
+
+        // if ($composer) {
+        //     $this->composer = $composer;
+        // }
+
+        $url = parse_url($this->localUrl);
+
+        // Default in case the URL is missing parts. The actual default
+        // localUrl is set by readComposerFile()
+        $host = $url['host'] ?? 'localhost';
+
+        if ($port = $url['port'] ?? false) {
+            $host .= ":$port";
+        }
+
+        $this->writeln("Creating web server at $host from $target...");
+
+        $cmd = "php -S $host -t '$target'";
+
+        $this->writeln($cmd);
+
+        self::$handle = proc_open($cmd, [], $pipes);
     }
 
     protected function readComposerFile()
     {
         $this->settings = self::readJsonFile('composer.json');
 
-        $extras = $this->settings['extras']['packman'] ?? [];
+        $config = $this->settings['extras']['packman'] ?? [];
 
-        $this->localUrl = $extras['localUrl'] ?? 'http://localhost:8081';
-        $this->remoteUrl = $extras['remoteUrl'] ?? 'https://github.com/';
-        $this->namespace = $extras['namespace'] ?? false;
+        if (!($this->localUrl = $config['localUrl'] ?? false)) {
+            $this->localUrl = 'http://localhost:8081';
+        }
 
-        if (!$this->namespace) {
+        if (!($this->remoteUrl = $config['remoteUrl'] ?? false)) {
+            $this->remoteUrl = 'https://github.com/';
+        }
+
+        if (!($this->namespace = $config['namespace'] ?? false)) {
             $name = $this->settings['name'] ?? '';
             $pos = strpos($name, '/');
 
@@ -296,8 +370,17 @@ class Packman
         }
 
         $config['homepage'] = $this->localUrl;
-        $config['repositories'] = $repositories;
-        $config['require'] = $require;
+
+        if ($repositories) {
+            $config['repositories'] = $repositories;
+        }
+
+        if ($require) {
+            $config['require'] = $require;
+        }
+
+        // Save the current satis config
+        $this->satisConfig = $config;
 
         $old = self::encode(self::readJsonFile(self::SATIS_FILE));
         $new = self::encode($config);
