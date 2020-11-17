@@ -11,6 +11,7 @@ namespace Proximify\ComposerPlugin;
 use Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Composer\Composer;
 
 /**
  * Package Manager
@@ -24,8 +25,10 @@ class Packman
     const OUTPUT_DIR = 'private-packages';
     const SATIS_FILE = 'satis.json';
 
-    private $handle;
-    private $domain;
+    /** @var mixed Handle for a web server process. */
+    private static $handle;
+    // private static $composer;
+
     private $output;
     private $settings;
     private $localUrl;
@@ -41,11 +44,44 @@ class Packman
         $this->stopServer();
     }
 
+    /**
+     * Start the web server.
+     *
+     * @return void
+     */
+    public function startServer(?Composer $composer = null)
+    {
+        $target = self::OUTPUT_DIR;
+
+        if (self::$handle || !is_dir($target)) {
+            return;
+        }
+
+        // if ($composer) {
+        //     $this->composer = $composer;
+        // }
+
+        $this->readComposerFile();
+
+        $url = parse_url($this->localUrl);
+
+        $host = $url['host'] ?? 'localhost';
+        $port = $url['port'] ?? 80;
+
+        $url = "$host:$port";
+
+        $this->writeln("Creating web server at $url from $target...");
+
+        $cmd = "php -S $url -t '$target'";
+
+        $this->writeln($cmd);
+
+        self::$handle = proc_open($cmd, [], $pipes);
+    }
+
     public function runCommand(string $name, InputInterface $input, OutputInterface $output)
     {
         $this->output = $output;
-
-        $this->readComposerFile();
 
         // The command name is also at: $input->getOption('command');
         // $options = $input->getArguments();
@@ -71,14 +107,12 @@ class Packman
 
     public function updateSatis()
     {
-        if (!$this->updateSatisFile()) {
-            return;
-        }
+        $changed = $this->updateSatisFile();
 
         if (!is_file(self::SATIS_FILE)) {
             $this->writeln("There is no satis.json");
         }
-
+        sleep(30);
         $options = [];
 
         $ourDir = self::OUTPUT_DIR;
@@ -93,6 +127,10 @@ class Packman
             $options['stderr'] = fopen('php://stderr', 'w');
         }
 
+        if ($changed && is_dir($ourDir)) {
+            $cmd = "rm -rf '$ourDir' && $cmd";
+        }
+
         $this->writeln("Running: $cmd ...");
 
         $status = self::execute($cmd, $options);
@@ -104,6 +142,10 @@ class Packman
         if ($status['err']) {
             $this->writeln($status['err'], $status['code']);
         }
+
+        // The server might be able to start now if it didn't before
+        // e.g. due to a missing document root folder
+        $this->startServer();
     }
 
     protected function readComposerFile()
@@ -128,47 +170,12 @@ class Packman
         }
     }
 
-    protected function startServer($port = '8081', $target = self::OUTPUT_DIR)
-    {
-        if ($this->handle) {
-            return $this->handle;
-        }
-
-        if (!is_dir($target)) {
-            return;
-        }
-
-        $this->domain = "localhost:$port";
-
-        $this->writeln("Creating web server at $this->domain from $target...");
-
-        $cmd = "php -S $this->domain -t '$target'";
-
-        $this->writeln($cmd);
-
-        // $specs = [
-        //     0 => ['pipe', 'r'], // stdin
-        //     1 => ['pipe', 'w'], // stdout
-        //     2 => ['pipe', 'w'], // stderr
-        // ];
-
-        $this->handle = proc_open($cmd, [], $pipes);
-
-        // $stdout = stream_get_contents($pipes[1]);
-        // $stderr = stream_get_contents($pipes[2]);
-
-        // $this->writeln($stdout);
-        // $this->writeln($stderr);
-
-        return $this->handle;
-    }
-
     protected function stopServer()
     {
-        if ($this->handle) {
+        if (self::$handle) {
             $this->writeln("Stopping server...");
-            proc_terminate($this->handle);
-            $this->handle = null;
+            proc_terminate(self::$handle);
+            self::$handle = null;
             $this->writeln("Server stopped!");
         }
     }
@@ -306,11 +313,11 @@ class Packman
 
     private function writeln(string $msg, ?int $code = null)
     {
-        if ($this->output) {
-            $prompt = is_null($code) ? self::YELLOW_CIRCLE : ($code ?
-                self::RED_CIRCLE : self::GREEN_CIRCLE);
+        $prompt = is_null($code) ? self::YELLOW_CIRCLE : ($code ?
+            self::RED_CIRCLE : self::GREEN_CIRCLE);
 
-            $this->output->writeln("$prompt $msg");
-        }
+        $msg = "$prompt $msg";
+
+        ($this->output) ? $this->output->writeln($msg) : print("$msg\n");
     }
 }

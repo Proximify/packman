@@ -24,6 +24,8 @@ class Loader implements PluginInterface, Capable
 {
     const PROMPT = Packman::YELLOW_CIRCLE . ' ';
 
+    private $packman;
+
     /**
      * @inheritDoc
      * Apply plugin modifications to Composer
@@ -39,6 +41,10 @@ class Loader implements PluginInterface, Capable
     public function activate(Composer $composer, IOInterface $io)
     {
         $io->write(self::PROMPT . "Packman...", true);
+
+        $this->packman = new Packman();
+
+        $this->packman->startServer($composer);
 
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
