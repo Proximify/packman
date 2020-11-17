@@ -20,6 +20,13 @@ use Composer\Repository\InstalledRepositoryInterface;
  */
 class Installer implements InstallerInterface
 {
+    protected $packages = [];
+
+    public function getPackages()
+    {
+        return $this->packages;
+    }
+
     /**
      * Decides if the installer supports the given type
      *
@@ -28,6 +35,9 @@ class Installer implements InstallerInterface
      */
     public function supports($packageType)
     {
+        if ($packageType == 'library') {
+            return true;
+        }
         // library, composer-plugin, etc
         echo "TYPE:$packageType";
         return false;
@@ -43,7 +53,9 @@ class Installer implements InstallerInterface
      */
     public function isInstalled(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
-        echo "isInstalled";
+        $this->packages[] = $package;
+
+        echo "\nisInstalled: " . $package->getName() . "\n";
         return false;
     }
 

@@ -71,6 +71,20 @@ class Command extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        // From src/Composer/Command/RequireCommand.php
+        // $this->file = Factory::getComposerFile();
+        // $io = $this->getIO();
+        // $this->json = new JsonFile($this->file);
+        // $this->lock = Factory::getLockFile($this->file);
+        // $this->composerBackup = file_get_contents($this->json->getPath());
+        // $this->lockBackup = file_exists($this->lock) ? file_get_contents($this->lock) : null;
+
+        // $composer = $this->getComposer(true, $input->getOption('no-plugins'));
+        // $repos = $composer->getRepositoryManager()->getRepositories();
+        // $composer->getPackage()->getPreferStable()
+        // $commandEvent = new CommandEvent(PluginEvents::COMMAND, 'require', $input, $output);
+        // $composer->getEventDispatcher()->dispatch($commandEvent->getName(), $commandEvent);
+
         (new Packman())->runCommand($this->cmdName, $input, $output);
     }
 }

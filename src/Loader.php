@@ -12,15 +12,20 @@ use Composer\Composer;
 use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Plugin\Capable;
+use Composer\Plugin\PreCommandRunEvent;
+use Composer\Plugin\PreFileDownloadEvent;
+use Composer\EventDispatcher\EventSubscriberInterface;
+use Composer\Factory;
+use Composer\Package\Version\VersionParser;
 
 /**
  * Package Manager
  * 
  * @see composer/src/Composer/Plugin/PluginInterface.php
- * @see function addInstaller at https://github.com/composer/composer/blob/4b4a3937eaa31c42dd905829fe1b04f4c94ab334/src/Composer/Installer/InstallationManager.php
- * @see InstallerInterface https://github.com/composer/composer/blob/4b8e77b2da9515f3462431dd5953e2560811263a/src/Composer/Installer/InstallerInterface.php
+ * @see function addInstaller at src/Composer/Installer/InstallationManager.php
+ * @see InstallerInterface src/Composer/Installer/InstallerInterface.php
  */
-class Loader implements PluginInterface, Capable
+class Loader implements PluginInterface, Capable, EventSubscriberInterface
 {
     const PROMPT = Packman::YELLOW_CIRCLE . ' ';
 
@@ -42,12 +47,13 @@ class Loader implements PluginInterface, Capable
     {
         $io->write(self::PROMPT . "Packman...", true);
 
+        // $installer = new Installer($io, $composer);
+        // $composer->getInstallationManager()->addInstaller($installer);
+        // getInstalledPackages()
+
         $this->packman = new Packman();
 
         $this->packman->start($composer);
-
-        // $installer = new Installer($io, $composer);
-        // $composer->getInstallationManager()->addInstaller($installer);
     }
 
     /**
@@ -94,4 +100,74 @@ class Loader implements PluginInterface, Capable
             'Composer\Plugin\Capability\CommandProvider' => 'Proximify\ComposerPlugin\CommandProvider',
         ];
     }
+
+    /**
+     * Undocumented function
+     *
+     * @link https://getcomposer.org/doc/articles/plugins.md#event-handler
+     * @link https://getcomposer.org/doc/articles/scripts.md#event-names
+     * 
+     * @return void
+     */
+    public static function getSubscribedEvents()
+    {
+        //'require'
+        // see src/Composer/Command/RequireCommand.php LINE 291
+
+        return [
+            // 'init' => 'initCommand',
+            'pre-command-run' => 'preCommandRun', // src/Composer/Plugin/PreCommandRunEvent.php
+            // 'pre-file-download' => 'preFileDownload'
+        ];
+    }
+
+    public function preCommandRun(PreCommandRunEvent $event)
+    {
+        $name = $event->getName();
+        $input = $event->getInput();
+        $cmd = $event->getCommand(); // 'require'
+
+        if ($input->hasArgument('packages')) {
+            $packages = $input->getArgument('packages');
+
+            $parser = new VersionParser();
+
+            $parsed = $parser->parseNameVersionPairs($packages);
+
+            $require = [];
+
+            foreach ($parsed as $pkg) {
+                // Note: there might be multiple ones with the same name
+                // and different version
+                $require[$pkg['name']] = $pkg['version'];
+            }
+
+            $this->packman->addPackages($require);
+        }
+    }
+
+    // public function initCommand($event)
+    // {
+    //     // $event->getComposer();
+    //     $name = $event->getName();
+    //     $args = $event->getArguments();
+
+    //     print_r("\nEvent init name: $name\n");
+    //     print_r("\nArguments:\n");
+    //     print_r(get_class($event));
+    //     print_r("\n");
+    // }
+
+    // public function preFileDownload(PreFileDownloadEvent $event)
+    // {
+    //     $name = $event->getName();
+
+    //     // https://repo.packagist.org/p2/proximify/glot-renderer.json
+    //     // https://repo.packagist.org/p2/proximify/glot-renderer~dev.json
+    //     // http://localhost:8081/packages.json
+    //     print_r("\nEvent pre run name: $name\n");
+    //     print_r("\nArguments:\n");
+    //     print_r([$event->getProcessedUrl()]);
+    //     print_r("\n");
+    // }
 }

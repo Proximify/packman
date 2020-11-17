@@ -15,6 +15,12 @@ use Composer\Composer;
 
 /**
  * Package Manager
+ *
+ * Note: Get RootPackage with $composer->getPackage()->getMinimumStability()
+ *
+ * @see findBestVersionAndNameForPackage in src/Composer/Command/InitCommand.php
+ * $this->normalizeRequirements($requires);
+ * @see src/Composer/InstalledVersions.php
  */
 class Packman
 {
@@ -57,6 +63,11 @@ class Packman
         }
     }
 
+    public static function setComposer(Composer $composer)
+    {
+        self::$composer = $composer;
+    }
+
     public function start(?Composer $composer = null)
     {
         if ($composer) {
@@ -71,11 +82,14 @@ class Packman
             return;
         }
 
-        if ($this->checkComposerFile()) {
-            $this->startServer();
-        } else {
-            $this->writeln("Please run 'composer packman-init'", 1);
-        }
+        $this->addSatisRepository();
+        $this->startServer();
+
+        // if ($this->checkComposerFile()) {
+        //     $this->startServer();
+        // } else {
+        //     $this->writeln("Please run 'composer packman-init'", 1);
+        // }
     }
 
     public function runCommand(string $name, InputInterface $input, OutputInterface $output)
@@ -134,9 +148,9 @@ class Packman
     {
     }
 
-    public function updateSatis()
+    public function updateSatis(array $packages = [])
     {
-        $changed = $this->updateSatisFile();
+        $changed = $this->updateSatisFile($packages);
 
         if (!is_file(self::SATIS_FILE)) {
             $this->writeln("There is no satis.json");
@@ -182,6 +196,24 @@ class Packman
         $this->writeln("Packages update complete", $code);
     }
 
+    public function addPackages(array $packages)
+    {
+        // print_r($packages);
+        if ($packages) {
+            $this->updateSatis($packages);
+        }
+    }
+
+    public function stopServer()
+    {
+        if (self::$handle) {
+            $this->writeln("Stopping server...");
+            proc_terminate(self::$handle);
+            self::$handle = null;
+            $this->writeln("Server stopped!");
+        }
+    }
+
     /**
      * Start the web server.
      *
@@ -193,6 +225,14 @@ class Packman
 
         if (self::$handle || !is_dir($target)) {
             return;
+        }
+
+        if (function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
+            $cb = [$this, 'stopServer'];
+            pcntl_async_signals(true);
+            pcntl_signal(SIGINT, $cb);
+            pcntl_signal(SIGTERM, $cb);
+            pcntl_signal(SIGHUP, $cb);
         }
 
         // if ($composer) {
@@ -220,6 +260,7 @@ class Packman
 
     protected function readComposerFile()
     {
+        // Use $json = file_get_contents(Factory::getComposerFile()); ???
         $this->settings = self::readJsonFile('composer.json');
 
         $config = $this->settings['extras']['packman'] ?? [];
@@ -241,16 +282,6 @@ class Packman
             }
 
             $this->namespace = substr($name, 0, $pos);
-        }
-    }
-
-    protected function stopServer()
-    {
-        if (self::$handle) {
-            $this->writeln("Stopping server...");
-            proc_terminate(self::$handle);
-            self::$handle = null;
-            $this->writeln("Server stopped!");
         }
     }
 
@@ -289,6 +320,27 @@ class Packman
         ];
     }
 
+    private function addSatisRepository()
+    {
+        $config = self::$composer->getConfig();
+
+        $config->merge(['secure-http' => false]);
+
+        $secureHttp = $config->get('secure-http');
+
+        $rm = self::$composer->getRepositoryManager();
+
+        print_r(['secureHttp' => $secureHttp ? 'y' : 'n']);
+
+        $repoConfig = [
+            'url' => $this->satisConfig['homepage']
+        ];
+
+        $repo = $rm->createRepository('composer', $repoConfig);
+
+        $rm->addRepository($repo);
+    }
+
     private static function readJsonFile(string $filename)
     {
         if (!is_file($filename)) {
@@ -310,10 +362,10 @@ class Packman
         file_put_contents($filename, self::encode($data));
     }
 
-    private function getDeclaredRepos(): array
+    private function getDeclaredRepos(array $newPackages = []): array
     {
         $packages = ($this->settings['require'] ?? []) +
-            ($this->settings['require-dev'] ?? []);
+            ($this->settings['require-dev'] ?? []) + $newPackages;
 
         // Remove self from the array
         unset($packages['proximify/packman']);
@@ -349,11 +401,11 @@ class Packman
      *
      * @return boolean True if the file was updated and false otherwise.
      */
-    private function updateSatisFile(): bool
+    private function updateSatisFile(array $packages = []): bool
     {
         $config = $this->getDefaultSatisConfig();
 
-        $declared = $this->getDeclaredRepos();
+        $declared = $this->getDeclaredRepos($packages);
         $remoteUrl = $this->remoteUrl;
         $ns = $this->namespace;
         $baseName = $ns;
