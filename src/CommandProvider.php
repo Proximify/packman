@@ -18,7 +18,11 @@ class CommandProvider implements CommandProviderCapability
 {
     public function getCommands()
     {
-        $names = [Command::INIT_CMD, Command::UPDATE_CMD];
+        $names = [
+            Command::INIT_CMD, Command::UPDATE_CMD,
+            Command::ALT_INIT_CMD, Command::ALT_UPDATE_CMD
+        ];
+
         $commands = [];
 
         foreach ($names as $name) {
@@ -35,7 +39,9 @@ class CommandProvider implements CommandProviderCapability
 class Command extends BaseCommand
 {
     const INIT_CMD = 'packman-init';
+    const ALT_INIT_CMD = 'init-packman';
     const UPDATE_CMD = 'packman-update';
+    const ALT_UPDATE_CMD = 'update-packman';
 
     private $cmdName;
 

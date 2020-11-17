@@ -6,5 +6,8 @@
         "editor.quickSuggestions": false
     },
     "prettier.trailingComma": "none",
-    "cSpell.words": ["Proximify"]
+    "cSpell.words": [
+        "Proximify",
+        "satis"
+    ]
 }

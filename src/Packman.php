@@ -20,7 +20,9 @@ class Packman
     const YELLOW_CIRCLE = "\u{1F7E1}";
     const GREEN_CIRCLE = "\u{1F7E2}";
     const RED_CIRCLE = "\u{1F534}";
+    const PACKMAN_ICON = "\u{25D4}";
     const OUTPUT_DIR = 'private-packages';
+    const SATIS_FILE = 'satis.json';
 
     private $handle;
     private $domain;
@@ -39,7 +41,72 @@ class Packman
         $this->stopServer();
     }
 
-    public function readComposerFile()
+    public function runCommand(string $name, InputInterface $input, OutputInterface $output)
+    {
+        $this->output = $output;
+
+        $this->readComposerFile();
+
+        // The command name is also at: $input->getOption('command');
+        // $options = $input->getArguments();
+        // print_r($options);
+
+        $this->startServer();
+
+        // $this->writeln("Executing '$name'...");
+
+        switch ($name) {
+            case 'packman-init':
+            case 'init-packman':
+                return $this->initComposerFile();
+            case 'packman-update':
+            case 'update-packman':
+                return $this->updateSatis();
+        }
+    }
+
+    public function initComposerFile()
+    {
+    }
+
+    public function updateSatis()
+    {
+        if (!$this->updateSatisFile()) {
+            return;
+        }
+
+        if (!is_file(self::SATIS_FILE)) {
+            $this->writeln("There is no satis.json");
+        }
+
+        $options = [];
+
+        $ourDir = self::OUTPUT_DIR;
+        $cmd = "php vendor/bin/satis build satis.json '$ourDir'";
+
+        if (empty($this->options['interactive'])) {
+            // -n (or --no-interaction) is used to use the ssh key of the
+            // machine instead of asking for a token.
+            $cmd .= ' -n';
+        } else {
+            // Show the request coming from the STDERR
+            $options['stderr'] = fopen('php://stderr', 'w');
+        }
+
+        $this->writeln("Running: $cmd ...");
+
+        $status = self::execute($cmd, $options);
+
+        if ($status['out']) {
+            $this->writeln($status['out']);
+        }
+
+        if ($status['err']) {
+            $this->writeln($status['err'], $status['code']);
+        }
+    }
+
+    protected function readComposerFile()
     {
         $this->settings = self::readJsonFile('composer.json');
 
@@ -61,138 +128,6 @@ class Packman
         }
     }
 
-    public function runCommand(string $name, InputInterface $input, OutputInterface $output)
-    {
-        $this->output = $output;
-
-        $this->readComposerFile();
-
-        // The command name is also at: $input->getOption('command');
-        // $options = $input->getArguments();
-        // print_r($options);
-
-        $this->startServer();
-
-        $this->writeln("Executing '$name'...");
-
-        switch ($name) {
-            case 'packman-init':
-            case 'init-packman':
-                return $this->init();
-            case 'packman-update':
-            case 'update-packman':
-                return $this->updateSatis();
-        }
-    }
-
-    static private function readJsonFile(string $filename)
-    {
-        if (!is_file($filename)) {
-            return [];
-        }
-
-        $json = file_get_contents($filename);
-
-        return json_decode($json, true) ?? [];
-    }
-
-    private function getDeclaredRepos(): array
-    {
-        $packages = ($this->settings['require'] ?? []) +
-            ($this->settings['require-dev'] ?? []);
-
-        // Remove self from the array
-        unset($packages['proximify/packman']);
-
-        $needle = $this->namespace . '/';
-        $targets = [];
-
-        foreach (array_keys($packages) as $key) {
-            $len = strlen($needle);
-            if (strncmp($key, $needle, $len) === 0) {
-                $targets[] = substr($key, $len);
-            }
-        }
-
-        return $targets;
-    }
-
-    private function getDefaultSatisConfig(): array
-    {
-        //self::readJsonFile('satis.json');
-        return [
-            'name' => 'proximify/packman-satis',
-            'require-dependencies' => false,
-            'archive' => [
-                'directory' => 'dist',
-                'format' => 'tar',
-                'skip-dev' => false
-            ]
-        ];
-    }
-
-    private function updateSatisFile()
-    {
-        $config = $this->getDefaultSatisConfig();
-
-        $declared = $this->getDeclaredRepos();
-        $remoteUrl = '';
-        $ns = $this->namespace;
-        $baseName = $ns;
-        $repositories = [];
-        $require = [];
-
-        foreach ($declared as $key => $repoName) {
-            $repositories[] = [
-                'type' => 'vcs',
-                'url' => "$remoteUrl/$baseName/$repoName.git"
-            ];
-
-            $require["$ns/$repoName"] = '*';
-        }
-
-        $config['homepage'] = $this->localUrl;
-        $config['repositories'] = $repositories;
-        $config['require'] = $require;
-
-        print_r($config);
-    }
-
-    public function updateSatis()
-    {
-        $this->updateSatisFile();
-
-        // print_r($this->settings);
-
-        if (!is_file('satis.json')) {
-            $this->writeln("There is no satis.json");
-        }
-
-        $options = [];
-
-        $ourDir = self::OUTPUT_DIR;
-        $cmd = "php vendor/bin/satis build satis.json '$ourDir'";
-
-        if (empty($this->options['interactive'])) {
-            // -n (or --no-interaction) is used to use the ssh key of the 
-            // machine instead of asking for a token.
-            $cmd .= ' -n';
-        } else {
-            // Show the request coming from the STDERR
-            $options['stderr'] = fopen('php://stderr', 'w');
-        }
-
-        $this->writeln("Running: $cmd ...");
-
-        $status = self::execute($cmd, $options);
-
-        if ($status['out'])
-            $this->writeln($status['out']);
-
-        if ($status['err'])
-            $this->writeln($status['err'], $status['code']);
-    }
-
     protected function startServer($port = '8081', $target = self::OUTPUT_DIR)
     {
         if ($this->handle) {
@@ -207,7 +142,23 @@ class Packman
 
         $this->writeln("Creating web server at $this->domain from $target...");
 
-        $this->handle = proc_open("php -S $this->domain -t '$target'", [], $pipes);
+        $cmd = "php -S $this->domain -t '$target'";
+
+        $this->writeln($cmd);
+
+        // $specs = [
+        //     0 => ['pipe', 'r'], // stdin
+        //     1 => ['pipe', 'w'], // stdout
+        //     2 => ['pipe', 'w'], // stderr
+        // ];
+
+        $this->handle = proc_open($cmd, [], $pipes);
+
+        // $stdout = stream_get_contents($pipes[1]);
+        // $stderr = stream_get_contents($pipes[2]);
+
+        // $this->writeln($stdout);
+        // $this->writeln($stderr);
 
         return $this->handle;
     }
@@ -215,10 +166,10 @@ class Packman
     protected function stopServer()
     {
         if ($this->handle) {
-            $this->writeln("Stopping server...\n");
+            $this->writeln("Stopping server...");
             proc_terminate($this->handle);
             $this->handle = null;
-            $this->writeln("Server stopped!\n");
+            $this->writeln("Server stopped!");
         }
     }
 
@@ -255,6 +206,102 @@ class Packman
             'err' => trim($stderr),
             'code' => proc_close($process)
         ];
+    }
+
+    private static function readJsonFile(string $filename)
+    {
+        if (!is_file($filename)) {
+            return [];
+        }
+
+        $json = file_get_contents($filename);
+
+        return json_decode($json, true) ?? [];
+    }
+
+    private static function encode(array $data): string
+    {
+        return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
+    private static function saveJsonFile(string $filename, array $data)
+    {
+        file_put_contents($filename, self::encode($data));
+    }
+
+    private function getDeclaredRepos(): array
+    {
+        $packages = ($this->settings['require'] ?? []) +
+            ($this->settings['require-dev'] ?? []);
+
+        // Remove self from the array
+        unset($packages['proximify/packman']);
+
+        $needle = $this->namespace . '/';
+        $targets = [];
+
+        foreach (array_keys($packages) as $key) {
+            $len = strlen($needle);
+            if (strncmp($key, $needle, $len) === 0) {
+                $targets[] = substr($key, $len);
+            }
+        }
+
+        return $targets;
+    }
+
+    private function getDefaultSatisConfig(): array
+    {
+        return [
+            'name' => 'proximify/packman-satis',
+            'require-dependencies' => false,
+            'archive' => [
+                'directory' => 'dist',
+                'format' => 'tar',
+                'skip-dev' => false
+            ]
+        ];
+    }
+
+    /**
+     * Update the contents of the satis.json if and only if the contents changed.
+     *
+     * @return boolean True if the file was updated and false otherwise.
+     */
+    private function updateSatisFile(): bool
+    {
+        $config = $this->getDefaultSatisConfig();
+
+        $declared = $this->getDeclaredRepos();
+        $remoteUrl = $this->remoteUrl;
+        $ns = $this->namespace;
+        $baseName = $ns;
+        $repositories = [];
+        $require = [];
+
+        foreach ($declared as $key => $repoName) {
+            $repositories[] = [
+                'type' => 'vcs',
+                'url' => "$remoteUrl/$baseName/$repoName.git"
+            ];
+
+            $require["$ns/$repoName"] = '*';
+        }
+
+        $config['homepage'] = $this->localUrl;
+        $config['repositories'] = $repositories;
+        $config['require'] = $require;
+
+        $old = self::encode(self::readJsonFile(self::SATIS_FILE));
+        $new = self::encode($config);
+
+        if ($old == $new) {
+            return false;
+        }
+
+        $this->saveJsonFile(self::SATIS_FILE, $config);
+
+        return true;
     }
 
     private function writeln(string $msg, ?int $code = null)
