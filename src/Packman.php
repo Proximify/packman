@@ -28,8 +28,8 @@ class Packman
     const GREEN_CIRCLE = "\u{1F7E2}";
     const RED_CIRCLE = "\u{1F534}";
     const PACKMAN_ICON = "\u{25D4}";
-    const OUTPUT_DIR = 'private-packages';
-    const SATIS_FILE = 'satis.json';
+    const OUTPUT_DIR = 'private-packages/repos';
+    const SATIS_FILE = 'private-packages/satis.json';
 
     /**
      * @var int Counter of Packman current instances. Used to remove
@@ -164,7 +164,9 @@ class Packman
         $options = [];
 
         $ourDir = self::OUTPUT_DIR;
-        $cmd = "php vendor/bin/satis build satis.json '$ourDir'";
+        $configPath = self::SATIS_FILE;
+
+        $cmd = "php vendor/bin/satis build '$configPath' '$ourDir'";
 
         if (empty($this->options['interactive'])) {
             // -n (or --no-interaction) is used to use the ssh key of the
@@ -176,7 +178,7 @@ class Packman
         }
 
         if ($changed && is_dir($ourDir)) {
-            $cmd = "rm -rf '$ourDir' && $cmd";
+            // $cmd = "rm -rf '$ourDir' && $cmd";
             $this->writeln("Recomputing all private packages...");
         } else {
             $this->writeln("Refreshing private packages...");
@@ -326,11 +328,9 @@ class Packman
 
         $config->merge(['secure-http' => false]);
 
-        $secureHttp = $config->get('secure-http');
+        // $secureHttp = $config->get('secure-http');
 
         $rm = self::$composer->getRepositoryManager();
-
-        print_r(['secureHttp' => $secureHttp ? 'y' : 'n']);
 
         $repoConfig = [
             'url' => $this->satisConfig['homepage']
@@ -403,6 +403,12 @@ class Packman
      */
     private function updateSatisFile(array $packages = []): bool
     {
+        $rootDir = dirname(self::SATIS_FILE);
+
+        if (!file_exists($rootDir)) {
+            mkdir($rootDir, 0744, true);
+        }
+
         $config = $this->getDefaultSatisConfig();
 
         $declared = $this->getDeclaredRepos($packages);
@@ -441,7 +447,10 @@ class Packman
             return false;
         }
 
+        $path = realpath(self::SATIS_FILE);
+        print_r($path);
         $this->saveJsonFile(self::SATIS_FILE, $config);
+        print_r('done');
 
         return true;
     }
