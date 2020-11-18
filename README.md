@@ -4,11 +4,11 @@
 
 # Packman
 
-Composer plugin for managing private packages using a local packaging server.
+This Composer plugin creates one package manager per project and serves private packages to Composer from a local web server.
 
 ## How it works
 
-The plugin reads the `composer.json` of the root project looks for packages listed under `require` and `require-dev` whose namespace is equal to the root project's. Such packages are assumed to be private and are served from a **local package manager** using a composer repository.
+The plugin reads the `composer.json` of the root project looks for packages listed under `require` and `require-dev` whose namespace is equal to the root project's. Such packages are assumed to be private and are served from a **local package manager** using a composer repository (public ones will still be found by Composer at packagist.org before their local versions).
 
 ### Steps
 
