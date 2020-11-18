@@ -19,8 +19,10 @@ class CommandProvider implements CommandProviderCapability
     public function getCommands()
     {
         $names = [
-            Command::INIT_CMD, Command::UPDATE_CMD,
-            Command::ALT_INIT_CMD, Command::ALT_UPDATE_CMD
+            Command::LIST_CMD,
+            Command::UPDATE_CMD,
+            Command::AUDIT_CMD,
+            Command::RESET_CMD
         ];
 
         $commands = [];
@@ -38,10 +40,10 @@ class CommandProvider implements CommandProviderCapability
  */
 class Command extends BaseCommand
 {
-    const INIT_CMD = 'packman-init';
-    const ALT_INIT_CMD = 'init-packman';
+    const LIST_CMD = 'packman-list';
     const UPDATE_CMD = 'packman-update';
-    const ALT_UPDATE_CMD = 'update-packman';
+    const AUDIT_CMD = 'packman-audit';
+    const RESET_CMD = 'packman-reset';
 
     private $cmdName;
 
@@ -69,6 +71,6 @@ class Command extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand($input, $output);
+        (new Packman())->runCommand($this->getName(), $input, $output);
     }
 }

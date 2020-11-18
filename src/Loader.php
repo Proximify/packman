@@ -48,7 +48,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
 
-        ($this->packman = new Packman($composer, $io))->start();
+        ($this->packman = new Packman($composer, $io)); //->start();
     }
 
     /**

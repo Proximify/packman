@@ -17,6 +17,8 @@ use Composer\Json\JsonFile;
 use Composer\IO\IOInterface;
 use Composer\InstalledVersions;
 
+defined('JSON_THROW_ON_ERROR') or define('JSON_THROW_ON_ERROR', 0);
+
 /**
  * Package Manager
  *
@@ -115,21 +117,18 @@ class Packman
         $this->addLocalServerToComposer();
     }
 
-    public function runCommand(InputInterface $input, OutputInterface $output)
+    public function runCommand(string $name, InputInterface $input, OutputInterface $output)
     {
-        $command = $input->getOption('command');
         $this->output = $output;
 
         // Read the composer file to init properties
         if (!$this->readComposerFile())
             return;
 
-        switch ($command) {
-            case 'packman-init':
-            case 'init-packman':
-                return $this->initComposerFile();
+        switch ($name) {
+            case 'packman-list':
+                return $this->listSatisRepos();
             case 'packman-update':
-            case 'update-packman':
                 return $this->updateSatis(true);
         }
     }
@@ -159,12 +158,15 @@ class Packman
         return false;
     }
 
-    public function initComposerFile()
+    public function listSatisRepos()
     {
+        print_r($this->getDeclaredRepos());
     }
 
     public function updateSatis(bool $reset)
     {
+        // debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+
         $options = [];
 
         $configPath = self::SATIS_FILE;
@@ -398,7 +400,7 @@ class Packman
 
         $json = file_get_contents($filename);
 
-        return json_decode($json, true) ?? [];
+        return json_decode($json, true, 512, JSON_THROW_ON_ERROR) ?: [];
     }
 
     private static function encode(array $data): string
@@ -411,10 +413,41 @@ class Packman
         file_put_contents($filename, self::encode($data));
     }
 
+    private function getSatisRepoDependencies(): array
+    {
+        if (!$this->namespace) {
+            return [];
+        }
+
+        $path = self::OUTPUT_DIR . '/p2/' . $this->namespace;
+
+        if (!is_dir($path)) {
+            return [];
+        }
+
+        $dir = new \DirectoryIterator($path);
+        $repos = [];
+
+        foreach ($dir as $fileinfo) {
+            if (!$fileinfo->isDot()) {
+                $data = self::readJsonFile($fileinfo->getPathname());
+
+                foreach ($data['packages'] ?? [] as $name => $pkg) {
+                    foreach ($pkg as $ref) {
+                        $repos += $ref['require'] ?? [];
+                    }
+                }
+            }
+        }
+
+        return $repos;
+    }
+
     private function getDeclaredRepos(array $newPackages = []): array
     {
         $packages = ($this->settings['require'] ?? []) +
-            ($this->settings['require-dev'] ?? []) + $newPackages;
+            ($this->settings['require-dev'] ?? []) +
+            $this->getSatisRepoDependencies() + $newPackages;
 
         // Remove self from the array
         unset($packages['proximify/packman']);
@@ -457,18 +490,20 @@ class Packman
             }
         }
 
-        // Write the contents to the file,
-        // using the FILE_APPEND flag to append the content to the end of the file
-        // and the LOCK_EX flag to prevent anyone else writing to the file at the same time
+        // Write the contents to the file using the FILE_APPEND flag to append the 
+        // content to the end of the file and the LOCK_EX flag to prevent anyone 
+        // else writing to the file at the same time
         file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
     }
 
     /**
      * Update the contents of the satis.json if and only if the contents changed.
      *
-     * @return boolean True if the file was updated and false otherwise.
+     * @return boolean|array False if there are no difference from the
+     * previous satis config. True if the difference is greatest (needs reset),
+     * or an array with the new repos that should be added.
      */
-    private function updateSatisFile(array $packages = []): bool
+    private function updateSatisFile(array $packages = [])
     {
         $rootDir = dirname(self::SATIS_FILE);
 
@@ -501,28 +536,31 @@ class Packman
             $config['repositories'] = $repositories;
         }
 
+        $oldSatisConfig = self::readJsonFile(self::SATIS_FILE);
+        $oldSatisRequire = $oldSatisConfig['require'];
+        unset($oldSatisConfig['require']);
+
+        // Check if the file is identical up to this point
+        if (self::encode($oldSatisConfig) == self::encode($config)) {
+            $diff = array_diff($require, $oldSatisRequire);
+        } else {
+            $diff = true;
+        }
+
+        // Don't save empty arrays because they become [] instead of {}
+        // which gets rejected by the json schema of satis
         if ($require) {
             $config['require'] = $require;
         }
 
-        // Save the current satis config
+        // Save the new satis config
         $this->satisConfig = $config;
 
-        $old = self::encode(self::readJsonFile(self::SATIS_FILE));
-        $new = self::encode($config);
-
-        if ($old == $new && is_dir(self::OUTPUT_DIR)) {
-            return false;
+        if ($diff) {
+            $this->saveJsonFile(self::SATIS_FILE, $config);
         }
 
-        $this->saveJsonFile(self::SATIS_FILE, $config);
-
-        // Check that the file was written
-        // if (!is_file(self::SATIS_FILE)) {
-        //     $this->writeError("There is no satis.json");
-        // }
-
-        return true;
+        return $diff;
     }
 
     private function getComposerSettings()
