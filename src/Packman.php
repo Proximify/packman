@@ -94,16 +94,24 @@ class Packman
         if (!$this->readComposerFile())
             return;
 
-        $changed = $this->updateSatisFile($packages);
+        $needsReset = $this->updateSatisFile($packages);
 
         // Check if the satis file defines a homepage and requirements
         if (!$this->needsServer()) {
             return;
         }
 
-        $this->startServer();
+        // If no reset is needed, the server can be started right away
+        if (!$needsReset) {
+            $this->startServer();
+        }
 
-        $this->updateSatis($changed);
+        $this->updateSatis($needsReset);
+
+        // If a reset was done, the server is started after it
+        if ($needsReset) {
+            $this->startServer();
+        }
 
         $this->addLocalServerToComposer();
     }
@@ -123,7 +131,7 @@ class Packman
                 return $this->initComposerFile();
             case 'packman-update':
             case 'update-packman':
-                return $this->updateSatis();
+                return $this->updateSatis(true);
         }
     }
 
@@ -156,14 +164,27 @@ class Packman
     {
     }
 
-    public function updateSatis(bool $changed = false)
+    public function updateSatis(bool $reset)
     {
         $options = [];
 
-        $ourDir = self::OUTPUT_DIR;
         $configPath = self::SATIS_FILE;
+        $ourDir = self::OUTPUT_DIR;
 
-        $cmd = "php vendor/bin/satis build '$configPath' '$ourDir'";
+        $globalComposer = self::$composer->getPluginManager()->getGlobalComposer();
+
+        $localBin = self::$composer->getConfig()->get('bin-dir') . '/satis';
+        $globalBin = $globalComposer->getConfig()->get('bin-dir') . '/satis';
+
+        $satisPath = is_file($localBin) ? $localBin : (is_file($globalBin) ?
+            $globalBin : false);
+
+        if (!$satisPath) {
+            $this->writeError("Cannot find satis");
+            return;
+        }
+
+        $cmd = "php '$satisPath' build '$configPath' '$ourDir'";
 
         if (empty($this->options['interactive'])) {
             // -n (or --no-interaction) is used to use the ssh key of the
@@ -174,14 +195,15 @@ class Packman
             $options['stderr'] = fopen('php://stderr', 'w');
         }
 
-        if ($changed && is_dir($ourDir)) {
-            // $cmd = "rm -rf '$ourDir' && $cmd";
+        if ($reset) {
+            $cmd = "rm -rf '$ourDir' && $cmd";
             $msg = "Recomputing all private packages...";
         } else {
             $msg = "Refreshing private packages...";
         }
 
         $this->writeMsg($msg);
+        $this->writeMsg($cmd, self::VERBOSE);
 
         $status = self::execute($cmd, $options);
         $code = $status['code'];
@@ -214,15 +236,38 @@ class Packman
     }
 
     /**
+     * Check if it is dir and if not, sleep a bit and check again.
+     *
+     * @param [type] $dir
+     * @param integer $maxRetry
+     * @return boolean
+     */
+    protected static function isDir($dir, $maxRetry = 20)
+    {
+        for ($i = 0; $i < $maxRetry; $i++) {
+            if (is_dir($dir)) {
+                return true;
+            }
+            sleep(1);
+        }
+
+        return false;
+    }
+
+    /**
      * Start the web server.
      *
      * @return void
      */
     protected function startServer()
     {
+        if (self::$handle) {
+            return;
+        }
+
         $target = self::OUTPUT_DIR;
 
-        if (self::$handle || !is_dir($target)) {
+        if (!self::isDir($target)) {
             return;
         }
 
@@ -486,15 +531,16 @@ class Packman
         $old = self::encode(self::readJsonFile(self::SATIS_FILE));
         $new = self::encode($config);
 
-        if ($old == $new) {
+        if ($old == $new && is_dir(self::OUTPUT_DIR)) {
             return false;
         }
 
         $this->saveJsonFile(self::SATIS_FILE, $config);
 
-        if (!is_file(self::SATIS_FILE)) {
-            $this->writeError("There is no satis.json");
-        }
+        // Check that the file was written
+        // if (!is_file(self::SATIS_FILE)) {
+        //     $this->writeError("There is no satis.json");
+        // }
 
         return true;
     }
