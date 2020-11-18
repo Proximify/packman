@@ -27,7 +27,7 @@ $ composer require proximify/packman --dev
 
 That should be all if the default parameter values for namespace, localUrl and remoteUrl are appropriate. Moreover, the folder `private_packages` is added to `.gitignore` automatically, so that's also taken care of 🥳.
 
-> **Important:** This solution assumes that the standard ssh credential required to fetch the needed repositories have been set up already.
+> **Important:** This solution assumes that the standard ssh credentials required to fetch the needed repositories have been set up already.
 
 ## Non-default options
 
