@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/proximify_packman.svg" width="300px" alt="proximify packman plugin">
+  <img src="docs/assets/proximify_packman.svg" width="250px" alt="proximify packman plugin">
 </p>
 
 # Packman
@@ -27,7 +27,7 @@ Add the plugin to the global composer (usually located at `~/.composer`)
 $ composer global require proximify/packman
 ```
 
-This option is the best because it has to be done only once and it works for installing projects that come with private packages.
+This option is the best because it has to be done only once and it works for installing existing projects that come with private packages.
 
 ### Method 2: Per-project install
 
@@ -37,7 +37,7 @@ Add the plugin to the development dependencies of your project
 $ composer require proximify/packman --dev
 ```
 
-The per-project option does not work when installing projects with private dependencies in them. In such cases, the plugin has to be installed before the other packages are processed, which is not the case on a fresh install.
+The per-project option does not work when installing existing projects with private dependencies in them because Packman will not exist until after the installation finishes. The packman method works with new projects because it can be installed before the private packages. One manual solution is to remove the private dependencies from a project, install it, and then put them back. Such a manual solutions solves the first-install problem.
 
 ### Next step
 
