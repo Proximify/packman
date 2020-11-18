@@ -97,7 +97,7 @@ class Packman
         if (!$this->readComposerFile())
             return;
 
-        $needsReset = $this->updateSatisFile($packages);
+        $diff = $this->updateSatisFile($packages);
 
         // Check if the satis file defines a homepage and requirements
         if (!$this->needsServer()) {
@@ -105,9 +105,10 @@ class Packman
         }
 
         // If no reset is needed, the server can be started right away
+        $needsReset = ($diff === true);
         $needsReset ? $this->stopServer() : $this->startServer();
 
-        $this->updateSatis($needsReset);
+        $this->updateSatis($diff);
 
         // If a reset was done, the server is started after it
         if ($needsReset) {
@@ -117,8 +118,11 @@ class Packman
         $this->addLocalServerToComposer();
     }
 
-    public function runCommand(string $name, InputInterface $input, OutputInterface $output)
-    {
+    public function runCommand(
+        string $name,
+        InputInterface $input,
+        OutputInterface $output
+    ) {
         $this->output = $output;
 
         // Read the composer file to init properties
@@ -163,7 +167,7 @@ class Packman
         print_r($this->getDeclaredRepos());
     }
 
-    public function updateSatis(bool $reset)
+    public function updateSatis($diff)
     {
         // debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
 
@@ -196,9 +200,11 @@ class Packman
             $options['stderr'] = fopen('php://stderr', 'w');
         }
 
-        if ($reset && is_dir($ourDir)) {
+        if ($diff === true && is_dir($ourDir)) {
             $cmd = "rm -rf '$ourDir' && $cmd";
             $msg = "Recomputing all private packages...";
+        } elseif ($diff && is_array($diff)) {
+            // add new repos
         } else {
             $msg = "Refreshing private packages...";
         }
@@ -215,6 +221,13 @@ class Packman
 
         if ($status['err']) {
             $this->writeError($status['err'], $level);
+        }
+
+        // Keep updating recursively until all dependencies are included
+        // but stop if it's not making progress for some reason
+        if (($diff2 = $this->updateSatisFile()) && array_diff($diff2, $diff)) {
+            $this->writeMsg('Processing nested dependencies', self::VERBOSE);
+            $this->updateSatis($diff2);
         }
 
         $this->writeMsg("Packages update complete", $level);
