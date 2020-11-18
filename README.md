@@ -8,7 +8,7 @@ Composer plugin for managing private packages using a local packaging server.
 
 ## How it works
 
-The plugin reads the `composer.json` of the root project an assumes that required packages with the same namespace than that of the root project should be managed by a **local packaging server**.
+The plugin reads the `composer.json` of the root project looks for packages listed under `require` and `require-dev` whose namespace is equal to the root project's. Such packages are assumed to be private and are served from a **local package manager** using a composer repository.
 
 ### Steps
 
@@ -19,17 +19,33 @@ The plugin reads the `composer.json` of the root project an assumes that require
 
 ## Getting started
 
+### Method 1: Global install
+
+Add the plugin to the global composer (usually located at `~/.composer`)
+
+```bash
+$ composer global require proximify/packman
+```
+
+This option is the best because it has to be done only once and it works for installing projects that come with private packages.
+
+### Method 2: Per-project install
+
 Add the plugin to the development dependencies of your project
 
 ```bash
 $ composer require proximify/packman --dev
 ```
 
-That should be all if the default parameter values for namespace, localUrl and remoteUrl are appropriate. Moreover, the folder `private_packages` is added to `.gitignore` automatically, so that's also taken care of 🥳.
+The per-project option does not work when installing projects with private dependencies in them. In such cases, the plugin has to be installed before the other packages are processed, which is not the case on a fresh install.
 
-> **Important:** This solution assumes that the standard ssh credentials required to fetch the needed repositories have been set up already.
+### Next step
 
-## Non-default options
+There is nothing else to do if the default parameter values are appropriate. Moreover, the folder `private_packages` is added to `.gitignore` automatically, so that's also taken care of 🥳.
+
+> **Important:** Packman assumes that the standard ssh credentials required to fetch the needed repositories have been set up already.
+
+## Options
 
 The assumption that private packages have the same namespace than that of the root project might not be correct. The namespace to use for private packages can be set via a custom parameter.
 
@@ -41,7 +57,7 @@ Custom parameter values are set in the `composer.json` under the `extras` proper
     "name": "my-namespace/my-composer-project",
     "extras": {
         "packman": {
-            "namespace": "some-namespace",
+            "namespace": "noy-my-namespace",
             "localUrl": "http://localhost:8081",
             "remoteUrl": "https://github.com"
         }

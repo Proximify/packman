@@ -133,7 +133,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
             foreach ($parsed as $pkg) {
                 // Note: there might be multiple ones with the same name
                 // and different version
-                $require[$pkg['name']] = $pkg['version'];
+                $require[$pkg['name']] = $pkg['version'] ?? 0;
             }
 
             $this->packman->addPackages($require);

@@ -88,10 +88,11 @@ class Packman
 
     public function start(array $packages = [])
     {
-        $this->writeMsg("Packman...");
+        $this->writeMsg("Packman...", self::VERBOSE);
 
         // Always read the composer file to init properties
-        $this->readComposerFile();
+        if (!$this->readComposerFile())
+            return;
 
         $changed = $this->updateSatisFile($packages);
 
@@ -113,7 +114,8 @@ class Packman
         $this->output = $output;
 
         // Read the composer file to init properties
-        $this->readComposerFile();
+        if (!$this->readComposerFile())
+            return;
 
         switch ($command) {
             case 'packman-init':
@@ -249,7 +251,7 @@ class Packman
         self::$handle = proc_open($cmd, [], $pipes);
     }
 
-    protected function readComposerFile()
+    protected function readComposerFile(): bool
     {
         // Use $json = file_get_contents(Factory::getComposerFile()); ???
         $this->settings = self::readJsonFile('composer.json');
@@ -269,7 +271,8 @@ class Packman
             $pos = strpos($name, '/');
 
             if (!$name || !$pos) {
-                throw new Exception("Cannot find namespace in composer.json");
+                $this->writeError("Cannot find namespace in composer.json");
+                return false;
             }
 
             $this->namespace = substr($name, 0, $pos);
@@ -283,6 +286,8 @@ class Packman
         }
 
         $this->versions = $versions;
+
+        return true;
     }
 
     protected static function execute(string $cmd, array $options = []): array
@@ -300,7 +305,7 @@ class Packman
         $process = proc_open($cmd, $descriptor, $pipes, $cwd, $env);
 
         if (!$process) {
-            throw new Exception("Cannot execute command");
+            throw new Exception(self::prefix("Cannot execute command"));
         }
 
         $stdout = stream_get_contents($pipes[1]);
@@ -320,16 +325,23 @@ class Packman
         ];
     }
 
+    protected static function prefix(string $msg, $isError = false)
+    {
+        $icon = $isError ? self::RED_CIRCLE : self::YELLOW_CIRCLE;
+
+        return $icon . ' Packman: ' . $msg;
+    }
+
     protected function writeMsg(string $msg, $level = IOInterface::NORMAL)
     {
-        $msg = self::YELLOW_CIRCLE . ' ' . $msg;
+        $msg = self::prefix($msg);
 
         self::$io ? self::$io->write($msg, true, $level) : print("$msg\n");
     }
 
     protected function writeError(string $msg)
     {
-        $msg = self::RED_CIRCLE . ' ' . $msg;
+        $msg = self::prefix($msg, true);
 
         self::$io ? self::$io->writeError($msg) : print("$msg\n");
     }
