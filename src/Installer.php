@@ -14,7 +14,7 @@ use Composer\Repository\InstalledRepositoryInterface;
 
 /**
  * Implementation of the interface for the package installation manager.
- * 
+ *
  * @see src/Composer/Installer/InstallerInterface.php
  * @see src/Composer/Installer/InstallationManager.php
  */
@@ -73,14 +73,14 @@ class Installer implements InstallerInterface
     }
 
     /**
-     * Do anything that needs to be done between all downloads have been 
+     * Do anything that needs to be done between all downloads have been
      * completed and the actual operation is executed
      *
-     * All packages get first downloaded, then all together prepared, then all 
+     * All packages get first downloaded, then all together prepared, then all
      * together installed/updated/uninstalled. Therefore
-     * for error recovery it is important to avoid failing during 
+     * for error recovery it is important to avoid failing during
      * install/update/uninstall as much as possible, and risky things or
-     * user prompts should happen in the prepare step rather. In case of failure, 
+     * user prompts should happen in the prepare step rather. In case of failure,
      * cleanup() will be called so that changes can
      * be undone as much as possible.
      *
@@ -146,9 +146,9 @@ class Installer implements InstallerInterface
     /**
      * Do anything to cleanup changes applied in the prepare or install/update/uninstall steps
      *
-     * Note that cleanup will be called for all packages regardless if they 
+     * Note that cleanup will be called for all packages regardless if they
      * failed an operation or not, to give
-     * all installers a change to cleanup things they did previously, so you 
+     * all installers a change to cleanup things they did previously, so you
      * need to keep track of changes
      * applied in the installer/downloader themselves.
      *

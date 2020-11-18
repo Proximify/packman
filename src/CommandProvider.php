@@ -45,7 +45,7 @@ class Command extends BaseCommand
 
     private $cmdName;
 
-    function __construct(string $name)
+    public function __construct(string $name)
     {
         // Do this BEFORE calling the parent constructor because the base
         // constructor calls configure().
@@ -57,34 +57,18 @@ class Command extends BaseCommand
     protected function configure()
     {
         $this->setName($this->cmdName);
-        // $this->addArgument('ssh', InputArgument::OPTIONAL, true);
+        // $this->addArgument('useTokens', InputArgument::OPTIONAL, false);
     }
 
     /**
-     * Execute the plugin command. 
-     * 
+     * Execute the plugin command.
+     *
      * @param InputInterface $input
-     * @param OutputInterface $output Console output. 
-     * E.g. $output->writeln('Executing ...');
-     * @link https://github.com/symfony/symfony/blob/5.x/src/Symfony/Component/Console/Output/OutputInterface.php
+     * @param OutputInterface $output Console output.
      * @return void
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        // From src/Composer/Command/RequireCommand.php
-        // $this->file = Factory::getComposerFile();
-        // $io = $this->getIO();
-        // $this->json = new JsonFile($this->file);
-        // $this->lock = Factory::getLockFile($this->file);
-        // $this->composerBackup = file_get_contents($this->json->getPath());
-        // $this->lockBackup = file_exists($this->lock) ? file_get_contents($this->lock) : null;
-
-        // $composer = $this->getComposer(true, $input->getOption('no-plugins'));
-        // $repos = $composer->getRepositoryManager()->getRepositories();
-        // $composer->getPackage()->getPreferStable()
-        // $commandEvent = new CommandEvent(PluginEvents::COMMAND, 'require', $input, $output);
-        // $composer->getEventDispatcher()->dispatch($commandEvent->getName(), $commandEvent);
-
-        (new Packman())->runCommand($this->cmdName, $input, $output);
+        (new Packman())->runCommand($input, $output);
     }
 }

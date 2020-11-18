@@ -20,7 +20,7 @@ use Composer\Package\Version\VersionParser;
 
 /**
  * Package Manager
- * 
+ *
  * @see composer/src/Composer/Plugin/PluginInterface.php
  * @see function addInstaller at src/Composer/Installer/InstallationManager.php
  * @see InstallerInterface src/Composer/Installer/InstallerInterface.php
@@ -34,10 +34,10 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
     /**
      * @inheritDoc
      * Apply plugin modifications to Composer
-     * 
-     * The activate() method of the plugin is called after the plugin is loaded 
-     * and receives an instance of Composer\Composer as well as an instance of 
-     * Composer\IO\IOInterface. Using these two objects all configuration can be 
+     *
+     * The activate() method of the plugin is called after the plugin is loaded
+     * and receives an instance of Composer\Composer as well as an instance of
+     * Composer\IO\IOInterface. Using these two objects all configuration can be
      * read and all internal objects and state can be manipulated as desired.
      *
      * @param Composer    $composer
@@ -45,15 +45,10 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
      */
     public function activate(Composer $composer, IOInterface $io)
     {
-        $io->write(self::PROMPT . "Packman...", true);
-
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
-        // getInstalledPackages()
 
-        $this->packman = new Packman();
-
-        $this->packman->start($composer);
+        ($this->packman = new Packman($composer, $io))->start();
     }
 
     /**
@@ -88,7 +83,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
 
     /**
      * @inheritDoc
-     * Declare the capabilities of the plugin. This method must return an array, 
+     * Declare the capabilities of the plugin. This method must return an array,
      * with the key as a Composer Capability class name, and the value as the
      * Plugin's own implementation class name of said Capability/
      *
@@ -106,7 +101,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
      *
      * @link https://getcomposer.org/doc/articles/plugins.md#event-handler
      * @link https://getcomposer.org/doc/articles/scripts.md#event-names
-     * 
+     *
      * @return void
      */
     public static function getSubscribedEvents()
@@ -123,7 +118,6 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
 
     public function preCommandRun(PreCommandRunEvent $event)
     {
-        $name = $event->getName();
         $input = $event->getInput();
         $cmd = $event->getCommand(); // 'require'
 

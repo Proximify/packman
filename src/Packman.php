@@ -12,6 +12,10 @@ use Exception;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Composer;
+use Composer\Factory;
+use Composer\Json\JsonFile;
+use Composer\IO\IOInterface;
+use Composer\InstalledVersions;
 
 /**
  * Package Manager
@@ -21,15 +25,18 @@ use Composer\Composer;
  * @see findBestVersionAndNameForPackage in src/Composer/Command/InitCommand.php
  * $this->normalizeRequirements($requires);
  * @see src/Composer/InstalledVersions.php
+ * @see src/Composer/Factory.php [has static methods]
  */
 class Packman
 {
     const YELLOW_CIRCLE = "\u{1F7E1}";
-    const GREEN_CIRCLE = "\u{1F7E2}";
     const RED_CIRCLE = "\u{1F534}";
-    const PACKMAN_ICON = "\u{25D4}";
+    // const GREEN_CIRCLE = "\u{1F7E2}";
+    // const PACKMAN_ICON = "\u{25D4}";
     const OUTPUT_DIR = 'private-packages/repos';
     const SATIS_FILE = 'private-packages/satis.json';
+
+    const VERBOSE = IOInterface::VERBOSE;
 
     /**
      * @var int Counter of Packman current instances. Used to remove
@@ -40,6 +47,7 @@ class Packman
     /** @var mixed Handle for a web server process. */
     private static $handle;
     private static $composer;
+    private static $io;
 
     private $output;
     private $settings;
@@ -47,10 +55,19 @@ class Packman
     private $remoteUrl;
     private $namespace;
     private $satisConfig;
+    private $versions;
 
-    public function __construct()
+    public function __construct(?Composer $composer = null, ?IOInterface $io = null)
     {
         self::$instanceCount++;
+
+        if ($composer) {
+            self::$composer = $composer;
+        }
+
+        if ($io) {
+            self::$io = $io;
+        }
     }
 
     public function __destruct()
@@ -58,8 +75,9 @@ class Packman
         self::$instanceCount--;
 
         if (self::$instanceCount == 0) {
-            self::$composer = null;
             $this->stopServer();
+            self::$composer = null;
+            self::$io = null;
         }
     }
 
@@ -68,48 +86,36 @@ class Packman
         self::$composer = $composer;
     }
 
-    public function start(?Composer $composer = null)
+    public function start(array $packages = [])
     {
-        if ($composer) {
-            self::$composer = $composer;
-        }
+        $this->writeMsg("Packman...");
 
         // Always read the composer file to init properties
         $this->readComposerFile();
-        $this->updateSatis();
 
+        $changed = $this->updateSatisFile($packages);
+
+        // Check if the satis file defines a homepage and requirements
         if (!$this->needsServer()) {
             return;
         }
 
-        $this->addSatisRepository();
         $this->startServer();
 
-        // if ($this->checkComposerFile()) {
-        //     $this->startServer();
-        // } else {
-        //     $this->writeln("Please run 'composer packman-init'", 1);
-        // }
+        $this->updateSatis($changed);
+
+        $this->addLocalServerToComposer();
     }
 
-    public function runCommand(string $name, InputInterface $input, OutputInterface $output)
+    public function runCommand(InputInterface $input, OutputInterface $output)
     {
+        $command = $input->getOption('command');
         $this->output = $output;
 
-        // Always read the composer file to init properties
+        // Read the composer file to init properties
         $this->readComposerFile();
 
-        // The server and the composer object are set by a different Packman
-        // object in static properties, so they are available to the object
-        // created for answering CLI commands.
-        // $this->start();
-
-        // The command name is also at: $input->getOption('command');
-        // $options = $input->getArguments();
-        // print_r($options);
-        // $this->writeln("Executing '$name'...");
-
-        switch ($name) {
+        switch ($command) {
             case 'packman-init':
             case 'init-packman':
                 return $this->initComposerFile();
@@ -148,19 +154,8 @@ class Packman
     {
     }
 
-    public function updateSatis(array $packages = [])
+    public function updateSatis(bool $changed = false)
     {
-        $changed = $this->updateSatisFile($packages);
-
-        if (!is_file(self::SATIS_FILE)) {
-            $this->writeln("There is no satis.json");
-        }
-
-        // Check if the satis file defines a homepage and requirements
-        if (!$this->needsServer()) {
-            return;
-        }
-
         $options = [];
 
         $ourDir = self::OUTPUT_DIR;
@@ -179,40 +174,40 @@ class Packman
 
         if ($changed && is_dir($ourDir)) {
             // $cmd = "rm -rf '$ourDir' && $cmd";
-            $this->writeln("Recomputing all private packages...");
+            $msg = "Recomputing all private packages...";
         } else {
-            $this->writeln("Refreshing private packages...");
+            $msg = "Refreshing private packages...";
         }
+
+        $this->writeMsg($msg);
 
         $status = self::execute($cmd, $options);
         $code = $status['code'];
 
         if ($status['out']) {
-            $this->writeln($status['out'], $code);
+            $this->writeMsg($status['out'], self::VERBOSE);
         }
 
         if ($status['err']) {
-            $this->writeln($status['err'], $code);
+            $this->writeError($status['err']);
         }
 
-        $this->writeln("Packages update complete", $code);
+        $this->writeMsg("Packages update complete", self::VERBOSE);
     }
 
     public function addPackages(array $packages)
     {
-        // print_r($packages);
         if ($packages) {
-            $this->updateSatis($packages);
+            $this->start($packages);
         }
     }
 
     public function stopServer()
     {
         if (self::$handle) {
-            $this->writeln("Stopping server...");
             proc_terminate(self::$handle);
             self::$handle = null;
-            $this->writeln("Server stopped!");
+            $this->writeMsg("Server stopped", self::VERBOSE);
         }
     }
 
@@ -237,10 +232,6 @@ class Packman
             pcntl_signal(SIGHUP, $cb);
         }
 
-        // if ($composer) {
-        //     $this->composer = $composer;
-        // }
-
         $url = parse_url($this->localUrl);
 
         // Default in case the URL is missing parts. The actual default
@@ -251,11 +242,9 @@ class Packman
             $host .= ":$port";
         }
 
-        $this->writeln("Creating web server at $host from $target...");
+        $this->writeMsg("Creating web server at $host from $target...", self::VERBOSE);
 
-        $cmd = "php -S $host -t '$target'";
-
-        $this->writeln($cmd);
+        $cmd = "php -S '$host' -t '$target'";
 
         self::$handle = proc_open($cmd, [], $pipes);
     }
@@ -285,6 +274,15 @@ class Packman
 
             $this->namespace = substr($name, 0, $pos);
         }
+
+        $installed = InstalledVersions::getInstalledPackages();
+        $versions = [];
+
+        foreach ($installed as $name) {
+            $versions[$name] = InstalledVersions::getVersion($name);
+        }
+
+        $this->versions = $versions;
     }
 
     protected static function execute(string $cmd, array $options = []): array
@@ -322,7 +320,21 @@ class Packman
         ];
     }
 
-    private function addSatisRepository()
+    protected function writeMsg(string $msg, $level = IOInterface::NORMAL)
+    {
+        $msg = self::YELLOW_CIRCLE . ' ' . $msg;
+
+        self::$io ? self::$io->write($msg, true, $level) : print("$msg\n");
+    }
+
+    protected function writeError(string $msg)
+    {
+        $msg = self::RED_CIRCLE . ' ' . $msg;
+
+        self::$io ? self::$io->writeError($msg) : print("$msg\n");
+    }
+
+    private function addLocalServerToComposer()
     {
         $config = self::$composer->getConfig();
 
@@ -396,6 +408,24 @@ class Packman
         ];
     }
 
+    private function addGitIgnore(string $dir)
+    {
+        $filename = '.gitignore';
+
+        if (file_exists($filename)) {
+            // Read entire file into an array
+            foreach (file($filename) as $line) {
+                if (trim($line) == $dir)
+                    return;
+            }
+        }
+
+        // Write the contents to the file,
+        // using the FILE_APPEND flag to append the content to the end of the file
+        // and the LOCK_EX flag to prevent anyone else writing to the file at the same time
+        file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
+    }
+
     /**
      * Update the contents of the satis.json if and only if the contents changed.
      *
@@ -407,6 +437,7 @@ class Packman
 
         if (!file_exists($rootDir)) {
             mkdir($rootDir, 0744, true);
+            $this->addGitIgnore($rootDir);
         }
 
         $config = $this->getDefaultSatisConfig();
@@ -447,21 +478,40 @@ class Packman
             return false;
         }
 
-        $path = realpath(self::SATIS_FILE);
-        print_r($path);
         $this->saveJsonFile(self::SATIS_FILE, $config);
-        print_r('done');
+
+        if (!is_file(self::SATIS_FILE)) {
+            $this->writeError("There is no satis.json");
+        }
 
         return true;
     }
 
-    private function writeln(string $msg, ?int $code = null)
+    private function getComposerSettings()
     {
-        $prompt = is_null($code) ? self::YELLOW_CIRCLE : ($code ?
-            self::RED_CIRCLE : self::GREEN_CIRCLE);
+        $compFile = Factory::getComposerFile();
+        $lockFile = Factory::getLockFile($compFile);
 
-        $msg = "$prompt $msg";
+        $json = new JsonFile($compFile);
 
-        ($this->output) ? $this->output->writeln($msg) : print("$msg\n");
+        $settings = file_get_contents($json->getPath());
+
+        $locks = file_exists($lockFile) ? file_get_contents($lockFile) : null;
+    }
+
+    private function dispatch($name, $input, $output)
+    {
+        // From src/Composer/Command/RequireCommand.php
+        // $commandEvent = new CommandEvent(
+        //     PluginEvents::COMMAND,
+        //     $name,
+        //     $input,
+        //     $output
+        // );
+
+        // self::$composer->getEventDispatcher()->dispatch(
+        //     $commandEvent->getName(),
+        //     $commandEvent
+        // );
     }
 }
