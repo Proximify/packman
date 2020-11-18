@@ -36,6 +36,7 @@ class Packman
     const OUTPUT_DIR = 'private-packages/repos';
     const SATIS_FILE = 'private-packages/satis.json';
 
+    const NORMAL = IOInterface::NORMAL;
     const VERBOSE = IOInterface::VERBOSE;
 
     /**
@@ -102,9 +103,7 @@ class Packman
         }
 
         // If no reset is needed, the server can be started right away
-        if (!$needsReset) {
-            $this->startServer();
-        }
+        $needsReset ? $this->stopServer() : $this->startServer();
 
         $this->updateSatis($needsReset);
 
@@ -195,7 +194,7 @@ class Packman
             $options['stderr'] = fopen('php://stderr', 'w');
         }
 
-        if ($reset) {
+        if ($reset && is_dir($ourDir)) {
             $cmd = "rm -rf '$ourDir' && $cmd";
             $msg = "Recomputing all private packages...";
         } else {
@@ -206,17 +205,17 @@ class Packman
         $this->writeMsg($cmd, self::VERBOSE);
 
         $status = self::execute($cmd, $options);
-        $code = $status['code'];
+        $level = $status['code'] ? self::VERBOSE : self::NORMAL;
 
         if ($status['out']) {
-            $this->writeMsg($status['out'], self::VERBOSE);
+            $this->writeMsg($status['out'], $level);
         }
 
         if ($status['err']) {
-            $this->writeError($status['err']);
+            $this->writeError($status['err'], $level);
         }
 
-        $this->writeMsg("Packages update complete", self::VERBOSE);
+        $this->writeMsg("Packages update complete", $level);
     }
 
     public function addPackages(array $packages)
@@ -236,25 +235,6 @@ class Packman
     }
 
     /**
-     * Check if it is dir and if not, sleep a bit and check again.
-     *
-     * @param [type] $dir
-     * @param integer $maxRetry
-     * @return boolean
-     */
-    protected static function isDir($dir, $maxRetry = 20)
-    {
-        for ($i = 0; $i < $maxRetry; $i++) {
-            if (is_dir($dir)) {
-                return true;
-            }
-            sleep(1);
-        }
-
-        return false;
-    }
-
-    /**
      * Start the web server.
      *
      * @return void
@@ -267,7 +247,7 @@ class Packman
 
         $target = self::OUTPUT_DIR;
 
-        if (!self::isDir($target)) {
+        if (!is_dir($target)) {
             return;
         }
 
@@ -377,18 +357,18 @@ class Packman
         return $icon . ' Packman: ' . $msg;
     }
 
-    protected function writeMsg(string $msg, $level = IOInterface::NORMAL)
+    protected function writeMsg(string $msg, $level = self::NORMAL)
     {
         $msg = self::prefix($msg);
 
         self::$io ? self::$io->write($msg, true, $level) : print("$msg\n");
     }
 
-    protected function writeError(string $msg)
+    protected function writeError(string $msg, $level = self::NORMAL)
     {
         $msg = self::prefix($msg, true);
 
-        self::$io ? self::$io->writeError($msg) : print("$msg\n");
+        self::$io ? self::$io->writeError($msg, $level) : print("$msg\n");
     }
 
     private function addLocalServerToComposer()
