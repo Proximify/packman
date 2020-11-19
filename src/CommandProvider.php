@@ -71,6 +71,13 @@ class Command extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        // load auth.json authentication information and pass it to the io interface
+        // $io = $this->getIO();
+        // $io->loadConfiguration($this->getConfiguration());
+
+        // $application = $this->getApplication();
+        // $composer = $application->getComposer(true, $config);
+
         (new Packman())->runCommand($this->getName(), $input, $output);
     }
 }

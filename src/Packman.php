@@ -28,6 +28,11 @@ defined('JSON_THROW_ON_ERROR') or define('JSON_THROW_ON_ERROR', 0);
  * $this->normalizeRequirements($requires);
  * @see src/Composer/InstalledVersions.php
  * @see src/Composer/Factory.php [has static methods]
+ * @see src/Composer/Util/RemoteFilesystem.php
+ * @see src/Composer/Json/JsonFile.php
+ * 
+ * Skip with: https://packagist.org/packages/list.json?vendor=proximify
+ * https://packagist.org/apidoc
  */
 class Packman
 {
@@ -108,7 +113,7 @@ class Packman
         $needsReset = ($diff === true);
         $needsReset ? $this->stopServer() : $this->startServer();
 
-        $this->updateSatis($diff);
+        $this->buildSatis($diff);
 
         // If a reset was done, the server is started after it
         if ($needsReset) {
@@ -133,7 +138,7 @@ class Packman
             case 'packman-list':
                 return $this->listSatisRepos();
             case 'packman-update':
-                return $this->updateSatis(true);
+                return $this->buildSatis(true);
         }
     }
 
@@ -167,70 +172,41 @@ class Packman
         print_r($this->getDeclaredRepos());
     }
 
-    public function updateSatis($diff)
+    public function addSatisRepo(array $package)
     {
-        // debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+        // see vendor/composer/satis/src/Console/Command/AddCommand.php
+        $options = [
+            'useToken' => false, // should be read from composer's extras
+            'name' => $package['name'],
+        ];
 
+        $this->writeMsg("Adding package '$package'...");
+
+        $this->runSatisCommand('add', $options);
+    }
+
+    public function buildSatis($diff)
+    {
         $options = [];
 
-        $configPath = self::SATIS_FILE;
-        $ourDir = self::OUTPUT_DIR;
-
-        $globalComposer = self::$composer->getPluginManager()->getGlobalComposer();
-
-        $localBin = self::$composer->getConfig()->get('bin-dir') . '/satis';
-        $globalBin = $globalComposer->getConfig()->get('bin-dir') . '/satis';
-
-        $satisPath = is_file($localBin) ? $localBin : (is_file($globalBin) ?
-            $globalBin : false);
-
-        if (!$satisPath) {
-            $this->writeError("Cannot find satis");
-            return;
-        }
-
-        $cmd = "php '$satisPath' build '$configPath' '$ourDir'";
-
-        if (empty($this->options['interactive'])) {
-            // -n (or --no-interaction) is used to use the ssh key of the
-            // machine instead of asking for a token.
-            $cmd .= ' -n';
-        } else {
-            // Show the request coming from the STDERR
-            $options['stderr'] = fopen('php://stderr', 'w');
-        }
-
-        if ($diff === true && is_dir($ourDir)) {
-            $cmd = "rm -rf '$ourDir' && $cmd";
+        if ($diff === true) {
+            $options['reset'] = true;
             $msg = "Recomputing all private packages...";
         } elseif ($diff && is_array($diff)) {
-            // add new repos
+            foreach ($diff as $pkg) {
+                $this->addSatisRepo($pkg);
+            }
+            // Get diff from nested dependencies of the added packages
+            $diff = $this->updateSatisFile();
         } else {
             $msg = "Refreshing private packages...";
         }
 
         $this->writeMsg($msg);
-        $this->writeMsg($cmd, self::VERBOSE);
 
-        $status = self::execute($cmd, $options);
-        $level = $status['code'] ? self::VERBOSE : self::NORMAL;
+        $this->buildSatisRecursive($options, $diff);
 
-        if ($status['out']) {
-            $this->writeMsg($status['out'], $level);
-        }
-
-        if ($status['err']) {
-            $this->writeError($status['err'], $level);
-        }
-
-        // Keep updating recursively until all dependencies are included
-        // but stop if it's not making progress for some reason
-        if (($diff2 = $this->updateSatisFile()) && array_diff($diff2, $diff)) {
-            $this->writeMsg('Processing nested dependencies', self::VERBOSE);
-            $this->updateSatis($diff2);
-        }
-
-        $this->writeMsg("Packages update complete", $level);
+        $this->writeMsg("Packages update complete", self::VERBOSE);
     }
 
     public function addPackages(array $packages)
@@ -247,6 +223,90 @@ class Packman
             self::$handle = null;
             $this->writeMsg("Server stopped", self::VERBOSE);
         }
+    }
+
+    /**
+     * Keep updating recursively until all dependencies are included
+     * but stop if it's not making progress for some reason.
+     *
+     * @param array $options
+     * @param array|bool $diff List of missing packages.
+     * @return void
+     */
+    protected function buildSatisRecursive(array $options, $diff): void
+    {
+        // The base case is that $diff is not an non-empty array
+        if (!$diff || !is_array($diff)) {
+            return;
+        }
+
+        $this->writeMsg('Building missing packages', self::VERBOSE);
+
+        if ($this->runSatisCommand('build', $options)) {
+            $diff2 = $this->updateSatisFile();
+
+            if (is_array($diff2) && !array_diff($diff2, $diff)) {
+                return; // there is nothing new to build
+            }
+
+            $this->buildSatisRecursive($options, $diff2);
+        }
+    }
+
+    protected function runSatisCommand(string $command, array $options): bool
+    {
+        $satisPath = self::$composer->getConfig()->get('bin-dir') . '/satis';
+
+        if (!is_file($satisPath)) {
+            // Try using the global bin-dir
+            $pm = self::$composer->getPluginManager();
+            $globalComposer = $pm->getGlobalComposer();
+            $satisPath = $globalComposer->getConfig()->get('bin-dir') . '/satis';
+
+            if (!is_file($satisPath)) {
+                $this->writeError("Cannot find satis binary");
+                return false;
+            }
+        }
+
+        $configPath = self::SATIS_FILE;
+        $ourDir = self::OUTPUT_DIR;
+
+        $cmd = "php '$satisPath' $command '$configPath' '$ourDir'";
+
+        if ($options['useToken'] ?? false) {
+            // The stdin and the stderr need to be connected to the 
+            // console's so the token can be entered when prompted
+            $pipes = [
+                'stderr' => fopen('php://stderr', 'w')
+                //stdin ?
+            ];
+        } else {
+            // -n (or --no-interaction) is used to use the ssh key of the
+            // machine instead of asking for a token.
+            $cmd .= ' -n';
+        }
+
+        if (($options['reset'] ?? false) && is_dir($ourDir)) {
+            $cmd = "rm -rf '$ourDir' && $cmd";
+        }
+
+        $this->writeMsg($cmd, self::VERBOSE);
+
+        $status = self::execute($cmd, ['pipes' => $pipes]);
+
+        $success = ($status['code'] == 0);
+        $level = $success ? self::VERBOSE : self::NORMAL;
+
+        if ($status['out']) {
+            $this->writeMsg($status['out'], $level);
+        }
+
+        if ($status['err']) {
+            $this->writeError($status['err'], $level);
+        }
+
+        return $success;
     }
 
     /**
@@ -334,7 +394,7 @@ class Packman
     {
         $cwd = $options['cwd'] ?? null;
         $env = $options['env'] ?? null;
-        $errPipe = $options['stderr'] ?? null;
+        $errPipe = $options['pipes']['stderr'] ?? null;
 
         $descriptor = [
             0 => ['pipe', 'r'], // stdin
@@ -462,10 +522,17 @@ class Packman
             ($this->settings['require-dev'] ?? []) +
             $this->getSatisRepoDependencies() + $newPackages;
 
+        // Exclude
+        $vendor = $this->namespace;
+        $url = 'https://packagist.org/packages/list.json?vendor=' . $vendor;
+
+        $exclude = json_decode($this->getRemoteContents($url, []), true);
+        print_r($exclude);
+
         // Remove self from the array
         unset($packages['proximify/packman']);
 
-        $needle = $this->namespace . '/';
+        $needle = $vendor . '/';
         $targets = [];
 
         foreach (array_keys($packages) as $key) {
@@ -602,5 +669,31 @@ class Packman
         //     $commandEvent->getName(),
         //     $commandEvent
         // );
+    }
+
+    /**
+     * Get contents of remote URL.
+     *
+     * @param string   $fileUrl   The file URL
+     * @param resource $context   The stream context
+     *
+     * @return string|false The response contents or false on failure
+     */
+    protected function getRemoteContents($fileUrl, $context, array &$responseHeaders = null)
+    {
+        try {
+            $e = null;
+            $result = file_get_contents($fileUrl, false, $context);
+        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
+        }
+
+        $responseHeaders = $http_response_header ?? [];
+
+        if (null !== $e) {
+            throw $e;
+        }
+
+        return $result;
     }
 }
