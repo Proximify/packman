@@ -97,7 +97,7 @@ class Packman
 
     public function start(array $packages = [])
     {
-        $this->writeMsg("Packman...", self::VERBOSE);
+        $this->log("Packman...");
 
         // Always read the composer file to init properties
         if (!$this->readComposerFile())
@@ -194,12 +194,13 @@ class Packman
 
         $this->buildSatisRecursive($options, $diff);
 
-        $this->writeMsg("Satis build is complete", self::VERBOSE);
+        $this->log("Satis build is complete");
     }
 
     public function addPackages(array $packages)
     {
         if ($packages) {
+            $this->log($packages, "Adding packages");
             $this->start($packages);
         }
     }
@@ -209,7 +210,7 @@ class Packman
         if (self::$serverHandle) {
             proc_terminate(self::$serverHandle);
             self::$serverHandle = null;
-            $this->writeMsg("Server stopped", self::VERBOSE);
+            $this->log("Server stopped");
         }
     }
 
@@ -223,12 +224,16 @@ class Packman
      */
     protected function buildSatisRecursive(array $options, $diff): void
     {
-        $this->writeMsg('Building missing packages', self::VERBOSE);
+        if ($diff) {
+            $this->log($diff);
+        }
+
+        $this->log('Building missing packages');
 
         if ($this->runSatisCommand('build', $options)) {
             $diff2 = $this->updateSatisFile();
 
-            if (!$diff2 || !is_array($diff2) || !array_diff($diff, $diff2)) {
+            if (!$diff2 || !is_array($diff2) || !array_diff($diff2, $diff)) {
                 return; // there is nothing new to build
             }
 
@@ -282,7 +287,7 @@ class Packman
         }
 
         $this->writeMsg($msg);
-        $this->writeMsg($cmd, self::VERBOSE);
+        $this->log($cmd);
 
         $status = self::execute($cmd, ['pipes' => $pipes]);
 
@@ -335,7 +340,7 @@ class Packman
             $host .= ":$port";
         }
 
-        $this->writeMsg("Creating web server at $host from $target...", self::VERBOSE);
+        $this->log("Creating web server at $host from $target...");
 
         $cmd = "php -S '$host' -t '$target'";
 
@@ -423,7 +428,7 @@ class Packman
         return $icon . ' Packman: ' . $msg;
     }
 
-    protected function writeMsg($msg, $level = self::NORMAL)
+    protected function writeMsg(string $msg, $level = self::NORMAL)
     {
         if (!is_string($msg)) {
             $msg = print_r($msg, true);
@@ -439,6 +444,19 @@ class Packman
         $msg = self::prefix($msg, true);
 
         self::$io ? self::$io->writeError($msg, $level) : print("$msg\n");
+    }
+
+    protected function log($msg, ?string $lbl = null)
+    {
+        if (!is_string($msg)) {
+            $msg = print_r($msg, true);
+        }
+
+        if ($lbl) {
+            $msg = "$lbl:\n" . $msg;
+        }
+
+        $this->writeMsg($msg, self::VERBOSE);
     }
 
     private function addLocalServerToComposer()
@@ -527,6 +545,8 @@ class Packman
 
     private function getDeclaredRepos(array $newPackages = []): array
     {
+        $this->log($newPackages, 'newPackages');
+
         $packages = ($this->settings['require'] ?? []) +
             ($this->settings['require-dev'] ?? []) +
             $this->getSatisRepoDependencies() + $newPackages;
@@ -605,8 +625,7 @@ class Packman
             return false;
         }
 
-        // $this->writeMsg('Declared', self::VERBOSE);
-        // $this->writeMsg($declared, self::VERBOSE);
+        $this->log($declared, 'Declared');
 
         // Create the private_repositories folder if it doesn't exist
         // It is the parent dir of the satis file.
@@ -649,17 +668,17 @@ class Packman
             $newKeys = array_keys($require);
 
             // Find new keys that are not among the old keys
-            $diff = array_diff($oldKeys, $newKeys);
+            $diff = array_diff($newKeys, $oldKeys);
 
-            // $this->writeMsg($oldKeys, self::VERBOSE);
-            // $this->writeMsg($newKeys, self::VERBOSE);
-            // $this->writeMsg($diff, self::VERBOSE);
+            $this->log($oldKeys, 'Old keys');
+            $this->log($newKeys, 'New keys');
+            $this->log($diff, 'Diff');
         } else {
             $diff = true;
 
-            $this->writeMsg("New satis file is too different from before", self::VERBOSE);
-            // $this->writeMsg($oldSatisConfig, self::VERBOSE);
-            // $this->writeMsg($config, self::VERBOSE);
+            $this->log("New satis file is too different from before");
+            // $this->log($oldSatisConfig, 'old config');
+            // $this->log($config, 'Config');
         }
 
         if ($repositories) {
