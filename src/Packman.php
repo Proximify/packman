@@ -612,19 +612,19 @@ class Packman
 
         $config['homepage'] = $this->localUrl;
 
-        if ($repositories) {
-            $config['repositories'] = $repositories;
-        }
-
+        // Check if the file is identical up to this point
         $oldSatisConfig = self::readJsonFile(self::SATIS_FILE);
         $oldSatisRequire = $oldSatisConfig['require'];
         unset($oldSatisConfig['require']);
 
-        // Check if the file is identical up to this point
         if (self::encode($oldSatisConfig) == self::encode($config)) {
             $diff = array_diff($require, $oldSatisRequire);
         } else {
             $diff = true;
+        }
+
+        if ($repositories) {
+            $config['repositories'] = $repositories;
         }
 
         // Don't save empty arrays because they become [] instead of {}
