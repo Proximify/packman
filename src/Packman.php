@@ -53,7 +53,7 @@ class Packman
     private static $instanceCount = 0;
 
     /** @var mixed Handle for a web server process. */
-    private static $handle;
+    private static $serverHandle;
     private static $composer;
     private static $io;
 
@@ -64,6 +64,7 @@ class Packman
     private $namespace;
     private $satisConfig;
     private $versions;
+    private $publicPackages;
 
     public function __construct(?Composer $composer = null, ?IOInterface $io = null)
     {
@@ -104,8 +105,8 @@ class Packman
 
         $diff = $this->updateSatisFile($packages);
 
-        // Check if the satis file defines a homepage and requirements
-        if (!$this->needsServer()) {
+        // Check if the satis file defines private repos
+        if (empty($this->satisConfig['require'])) {
             return;
         }
 
@@ -138,16 +139,8 @@ class Packman
             case 'packman-list':
                 return $this->listSatisRepos();
             case 'packman-update':
-                return $this->buildSatis(true);
+                return $this->buildSatis($this->updateSatisFile());
         }
-    }
-
-    public function needsServer()
-    {
-        $url = $this->satisConfig['homepage'] ?? false;
-        $require = $this->satisConfig['require'] ?? false;
-
-        return ($url && $require);
     }
 
     public function checkComposerFile()
@@ -172,6 +165,14 @@ class Packman
         print_r($this->getDeclaredRepos());
     }
 
+    /**
+     * The 'add' command of satis simply modifies the satis.json file. The same 
+     * generic build step has to be run after. We can edit satis.json directly
+     * so the command is not used.
+     * 
+     * @param array $package
+     * @return void
+     */
     public function addSatisRepo(array $package)
     {
         // see vendor/composer/satis/src/Console/Command/AddCommand.php
@@ -187,26 +188,13 @@ class Packman
 
     public function buildSatis($diff)
     {
-        $options = [];
-
-        if ($diff === true) {
-            $options['reset'] = true;
-            $msg = "Recomputing all private packages...";
-        } elseif ($diff && is_array($diff)) {
-            foreach ($diff as $pkg) {
-                $this->addSatisRepo($pkg);
-            }
-            // Get diff from nested dependencies of the added packages
-            $diff = $this->updateSatisFile();
-        } else {
-            $msg = "Refreshing private packages...";
-        }
-
-        $this->writeMsg($msg);
+        $options = [
+            'reset' => ($diff === true)
+        ];
 
         $this->buildSatisRecursive($options, $diff);
 
-        $this->writeMsg("Packages update complete", self::VERBOSE);
+        $this->writeMsg("Satis build is complete", self::VERBOSE);
     }
 
     public function addPackages(array $packages)
@@ -218,9 +206,9 @@ class Packman
 
     public function stopServer()
     {
-        if (self::$handle) {
-            proc_terminate(self::$handle);
-            self::$handle = null;
+        if (self::$serverHandle) {
+            proc_terminate(self::$serverHandle);
+            self::$serverHandle = null;
             $this->writeMsg("Server stopped", self::VERBOSE);
         }
     }
@@ -235,19 +223,17 @@ class Packman
      */
     protected function buildSatisRecursive(array $options, $diff): void
     {
-        // The base case is that $diff is not an non-empty array
-        if (!$diff || !is_array($diff)) {
-            return;
-        }
-
         $this->writeMsg('Building missing packages', self::VERBOSE);
 
         if ($this->runSatisCommand('build', $options)) {
             $diff2 = $this->updateSatisFile();
 
-            if (is_array($diff2) && !array_diff($diff2, $diff)) {
+            if (!$diff2 || !is_array($diff2) || !array_diff($diff, $diff2)) {
                 return; // there is nothing new to build
             }
+
+            // Never reset when recursing
+            $options['reset'] = false;
 
             $this->buildSatisRecursive($options, $diff2);
         }
@@ -285,12 +271,17 @@ class Packman
             // -n (or --no-interaction) is used to use the ssh key of the
             // machine instead of asking for a token.
             $cmd .= ' -n';
+            $pipes = []; // no pipes needed
         }
+
+        $msg = "Running satis $command...";
 
         if (($options['reset'] ?? false) && is_dir($ourDir)) {
             $cmd = "rm -rf '$ourDir' && $cmd";
+            $msg = "Resetting satis. $msg";
         }
 
+        $this->writeMsg($msg);
         $this->writeMsg($cmd, self::VERBOSE);
 
         $status = self::execute($cmd, ['pipes' => $pipes]);
@@ -316,7 +307,7 @@ class Packman
      */
     protected function startServer()
     {
-        if (self::$handle) {
+        if (self::$serverHandle) {
             return;
         }
 
@@ -348,7 +339,7 @@ class Packman
 
         $cmd = "php -S '$host' -t '$target'";
 
-        self::$handle = proc_open($cmd, [], $pipes);
+        self::$serverHandle = proc_open($cmd, [], $pipes);
     }
 
     protected function readComposerFile(): bool
@@ -432,8 +423,12 @@ class Packman
         return $icon . ' Packman: ' . $msg;
     }
 
-    protected function writeMsg(string $msg, $level = self::NORMAL)
+    protected function writeMsg($msg, $level = self::NORMAL)
     {
+        if (!is_string($msg)) {
+            $msg = print_r($msg, true);
+        }
+
         $msg = self::prefix($msg);
 
         self::$io ? self::$io->write($msg, true, $level) : print("$msg\n");
@@ -516,23 +511,32 @@ class Packman
         return $repos;
     }
 
+    private function getPublicPackages(string $vendor)
+    {
+        $url = 'https://packagist.org/packages/list.json?vendor=' . $vendor;
+
+        if ($this->publicPackages === null) {
+            $response = json_decode($this->getRemoteContents($url, []), true);
+            $this->publicPackages = $response['packageNames'] ?? [];
+        }
+
+        // print_r($this->publicPackages);
+
+        return $this->publicPackages;
+    }
+
     private function getDeclaredRepos(array $newPackages = []): array
     {
         $packages = ($this->settings['require'] ?? []) +
             ($this->settings['require-dev'] ?? []) +
             $this->getSatisRepoDependencies() + $newPackages;
 
-        // Exclude
-        $vendor = $this->namespace;
-        $url = 'https://packagist.org/packages/list.json?vendor=' . $vendor;
-
-        $exclude = json_decode($this->getRemoteContents($url, []), true);
-        print_r($exclude);
+        $exclude = $this->getPublicPackages($this->namespace);
 
         // Remove self from the array
         unset($packages['proximify/packman']);
 
-        $needle = $vendor . '/';
+        $needle = $this->namespace . '/';
         $targets = [];
 
         foreach (array_keys($packages) as $key) {
@@ -585,6 +589,27 @@ class Packman
      */
     private function updateSatisFile(array $packages = [])
     {
+        // Init the internal satis config
+        $this->satisConfig = [];
+
+        // Get the declared private package dependencies without their namespace
+        $declared = $this->getDeclaredRepos($packages);
+
+        if (!$declared) {
+            // There are no private packages
+            return false;
+        }
+
+        if (!$this->localUrl) {
+            $this->writeError("There is no URL for the packman server");
+            return false;
+        }
+
+        // $this->writeMsg('Declared', self::VERBOSE);
+        // $this->writeMsg($declared, self::VERBOSE);
+
+        // Create the private_repositories folder if it doesn't exist
+        // It is the parent dir of the satis file.
         $rootDir = dirname(self::SATIS_FILE);
 
         if (!file_exists($rootDir)) {
@@ -594,7 +619,6 @@ class Packman
 
         $config = $this->getDefaultSatisConfig();
 
-        $declared = $this->getDeclaredRepos($packages);
         $remoteUrl = $this->remoteUrl;
         $ns = $this->namespace;
         $baseName = $ns;
@@ -614,13 +638,28 @@ class Packman
 
         // Check if the file is identical up to this point
         $oldSatisConfig = self::readJsonFile(self::SATIS_FILE);
-        $oldSatisRequire = $oldSatisConfig['require'];
+        $oldSatisRequire = $oldSatisConfig['require'] ?? [];
+
+        // Remove old repositories and require before comparing...
+        unset($oldSatisConfig['repositories']);
         unset($oldSatisConfig['require']);
 
         if (self::encode($oldSatisConfig) == self::encode($config)) {
-            $diff = array_diff($require, $oldSatisRequire);
+            $oldKeys = array_keys($oldSatisRequire);
+            $newKeys = array_keys($require);
+
+            // Find new keys that are not among the old keys
+            $diff = array_diff($oldKeys, $newKeys);
+
+            // $this->writeMsg($oldKeys, self::VERBOSE);
+            // $this->writeMsg($newKeys, self::VERBOSE);
+            // $this->writeMsg($diff, self::VERBOSE);
         } else {
             $diff = true;
+
+            $this->writeMsg("New satis file is too different from before", self::VERBOSE);
+            // $this->writeMsg($oldSatisConfig, self::VERBOSE);
+            // $this->writeMsg($config, self::VERBOSE);
         }
 
         if ($repositories) {
@@ -679,20 +718,11 @@ class Packman
      *
      * @return string|false The response contents or false on failure
      */
-    protected function getRemoteContents($fileUrl, $context, array &$responseHeaders = null)
+    protected function getRemoteContents($fileUrl)
     {
-        try {
-            $e = null;
-            $result = file_get_contents($fileUrl, false, $context);
-        } catch (\Throwable $e) {
-        } catch (\Exception $e) {
-        }
+        $result = file_get_contents($fileUrl, false);
 
-        $responseHeaders = $http_response_header ?? [];
-
-        if (null !== $e) {
-            throw $e;
-        }
+        // $responseHeaders = $http_response_header ?? [];
 
         return $result;
     }
