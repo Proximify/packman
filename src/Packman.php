@@ -42,6 +42,7 @@ class Packman
     // const PACKMAN_ICON = "\u{25D4}";
     const OUTPUT_DIR = 'private-packages/repos';
     const SATIS_FILE = 'private-packages/satis.json';
+    const SEPARATOR = '-----------------------------------';
 
     const NORMAL = IOInterface::NORMAL;
     const VERBOSE = IOInterface::VERBOSE;
@@ -65,6 +66,8 @@ class Packman
     private $satisConfig;
     private $versions;
     private $publicPackages;
+    private $newRequire = [];
+    private $buildCount;
 
     public function __construct(?Composer $composer = null, ?IOInterface $io = null)
     {
@@ -192,6 +195,8 @@ class Packman
             'reset' => ($diff === true)
         ];
 
+        $this->buildCount = 0;
+
         $this->buildSatisRecursive($options, $diff);
 
         $this->log("Satis build is complete");
@@ -200,7 +205,6 @@ class Packman
     public function addPackages(array $packages)
     {
         if ($packages) {
-            $this->log($packages, "Adding packages");
             $this->start($packages);
         }
     }
@@ -225,10 +229,12 @@ class Packman
     protected function buildSatisRecursive(array $options, $diff): void
     {
         if ($diff) {
-            $this->log($diff);
+            $this->log($diff, 'Current differences');
         }
 
-        $this->log('Building missing packages');
+        $this->buildCount++;
+
+        $this->log("Building missing packages [$this->buildCount]");
 
         if ($this->runSatisCommand('build', $options)) {
             $diff2 = $this->updateSatisFile();
@@ -286,6 +292,7 @@ class Packman
             $msg = "Resetting satis. $msg";
         }
 
+        $this->writeMsg(self::SEPARATOR);
         $this->writeMsg($msg);
         $this->log($cmd);
 
@@ -295,12 +302,14 @@ class Packman
         $level = $success ? self::VERBOSE : self::NORMAL;
 
         if ($status['out']) {
-            $this->writeMsg($status['out'], $level);
+            $this->writeMsg(trim($status['out']), $level);
         }
 
         if ($status['err']) {
-            $this->writeError($status['err'], $level);
+            $this->writeError(trim($status['err']), $level);
         }
+
+        $this->writeMsg(self::SEPARATOR);
 
         return $success;
     }
@@ -538,23 +547,24 @@ class Packman
             $this->publicPackages = $response['packageNames'] ?? [];
         }
 
-        // print_r($this->publicPackages);
+        // $this->log($this->publicPackages, 'public packages');
 
         return $this->publicPackages;
     }
 
-    private function getDeclaredRepos(array $newPackages = []): array
+    private function getDeclaredRepos(): array
     {
-        $this->log($newPackages, 'newPackages');
+        $this->log($this->newRequire, 'new require');
 
         $packages = ($this->settings['require'] ?? []) +
             ($this->settings['require-dev'] ?? []) +
-            $this->getSatisRepoDependencies() + $newPackages;
+            $this->getSatisRepoDependencies() + $this->newRequire;
 
         $exclude = $this->getPublicPackages($this->namespace);
 
-        // Remove self from the array
-        unset($packages['proximify/packman']);
+        foreach ($exclude as $key) {
+            unset($packages[$key]);
+        }
 
         $needle = $this->namespace . '/';
         $targets = [];
@@ -612,8 +622,12 @@ class Packman
         // Init the internal satis config
         $this->satisConfig = [];
 
-        // Get the declared private package dependencies without their namespace
-        $declared = $this->getDeclaredRepos($packages);
+        // Add given packages to the active new requires.
+        $this->newRequire += $packages;
+
+        // Get the declared private package dependencies, including
+        // the new requires and the dependencies of required packages
+        $declared = $this->getDeclaredRepos();
 
         if (!$declared) {
             // There are no private packages
@@ -641,8 +655,11 @@ class Packman
         $remoteUrl = $this->remoteUrl;
         $ns = $this->namespace;
         $baseName = $ns;
-        $repositories = [];
         $require = [];
+
+        $repositories = [
+            ['packagist.org' => false] // not really necessary
+        ];
 
         foreach ($declared as $key => $repoName) {
             $repositories[] = [

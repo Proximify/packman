@@ -45,6 +45,8 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
      */
     public function activate(Composer $composer, IOInterface $io)
     {
+        error_log("\nPackman was loaded\n");
+
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
 
@@ -118,8 +120,15 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
 
     public function preCommandRun(PreCommandRunEvent $event)
     {
+        $commands = ['install', 'update', 'require'];
+        $cmd = $event->getCommand();
+
+        if (!in_array($cmd, $commands)) {
+            return;
+        }
+
         $input = $event->getInput();
-        $cmd = $event->getCommand(); // 'require'
+        $require = [];
 
         if ($input->hasArgument('packages')) {
             $packages = $input->getArgument('packages');
@@ -127,8 +136,6 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
             $parser = new VersionParser();
 
             $parsed = $parser->parseNameVersionPairs($packages);
-
-            $require = [];
 
             foreach ($parsed as $pkg) {
                 // Note: there might be multiple ones with the same name
@@ -138,6 +145,8 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
 
             $this->packman->addPackages($require);
         }
+
+        $this->packman->start($require);
     }
 
     // public function initCommand($event)
