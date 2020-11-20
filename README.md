@@ -76,6 +76,18 @@ The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything 
 
 It is fine and normal to have both symlink repositories and private once managed with <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle">. The symlink repositories will have higher precedence than the private ones.
 
+Once the Packman plugin is installed to fetch remote private packages, and the global and/or local `composer.json` is configured for any additional local symlink repositories, you can run
+
+```bash
+composer require my-org/my-repo:dev-master
+```
+
+to get the package defined as the latest development commit of the master branch of the given repository.
+
+### Deployment to Prod
+
+It's not a good idea to use symlink repositories to deploy to a production machine. The symlink repositories are only meant for local development. In contrast, Packman can be used to deploy to a production server (e.g. as a zip bundle). But, if the intent is to fetch the packages on the production server, then the default Packman solution of hosting private packages on `localhost` won't work if that URL endpoint is not authenticated in some way. In other words, **Packman is for local machines only**. If used on a server, the Packman URL (`localUrl`) should only be accessible **only** from the local machine.
+
 ## Options
 
 The assumption that private packages have the same namespace than that of the root project might not be correct. The namespace to use for private packages can be set via a custom parameter.
