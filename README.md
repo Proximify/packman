@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/assets/proximify_packman.svg" width="250px" alt="proximify packman plugin">
+  <img src="docs/assets/proximify_packman.svg" width="250px" alt="proximify packman plugin icon">
 </p>
 
 # Packman
 
-This Composer plugin creates one package manager per project and serves private packages to Composer from a local web server.
+This Composer plugin creates one package manager per project and serves private packages to Composer from a local web server. It assumes that all private packages have the same namespace and are hosted at the same web service with a common URL prefix (e.g. `https://github.com/CompanyName/...`).
 
 ## How it works
 
@@ -45,6 +45,37 @@ There is nothing else to do if the default parameter values are appropriate. Mor
 
 > **Important:** Packman assumes that the standard ssh credentials required to fetch the needed repositories have been set up already.
 
+## Use Symlink for dev
+
+When developing multiple interdependent components at the same time, it is better to use symlink repositories than private ones fetched with <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle">. The reason for that is that the packages won't need to be updated via composer every time they change. You just modify a project and the change is "applied" to the copy of the package within the vendor folder of another project.
+
+It's a good idea to define your symlink repositories in the **global** composer settings. In that way, you don't have to remember to remove the repository specs from each local `composer.json` that needs it.
+
+```json
+// Example global configuration of a symlink repository
+// ~/.composer/composer.json
+{
+    "minimum-stability": "dev",
+    "require": {
+        "my-org/my-repo": "*"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "~/my-org/my-repo",
+            "options": {
+                "symlink": true
+            }
+        }
+    ]
+}
+```
+The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything else stays as shown.
+
+> Use a relative path for the "url" that is common to all members of your team. You can either start from your home directory with `~` or you can make it relative to the root project with `../`. The `~` is convenient for packages installed globally. The `../` allows for more freedom as long as the package is not installed globally or that the relative path also works from the global `.composer` folder.
+
+It is fine and normal to have both symlink repositories and private once managed with <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle">. The symlink repositories will have higher precedence than the private ones.
+
 ## Options
 
 The assumption that private packages have the same namespace than that of the root project might not be correct. The namespace to use for private packages can be set via a custom parameter.
@@ -57,7 +88,7 @@ Custom parameter values are set in the `composer.json` under the `extras` proper
     "name": "my-namespace/my-composer-project",
     "extras": {
         "packman": {
-            "namespace": "noy-my-namespace",
+            "namespace": "alt-my-namespace",
             "localUrl": "http://localhost:8081",
             "remoteUrl": "https://github.com"
         }
@@ -69,11 +100,27 @@ If the protocol of the **localUrl** is http instead of https, **packman** will s
 
 ### Parameters
 
-| Parameter | Default value                         | Description                                                                           |
-| --------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
-| namespace | `{ROOT-NAMESPACE}`                    | The namespace of the private packages to manage                                       |
-| remoteUrl | `https://github.com/{ROOT-NAMESPACE}` | Base URL of the repository hosting servers where the private repositories are located |
-| localUrl  | `http://localhost:8081`               | The URL to be used for the local server of Composer packages                          |
+The paremeters are set in the global and/or local composer.json files under the keys `extras: {packman: { ... }}`.
+
+| Parameter | Default value                         | Description                                                                                                                           |
+| --------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| namespace | `{ROOT-NAMESPACE}`                    | The namespace of the private packages to manage.                                                                                      |
+| remoteUrl | `https://github.com/{ROOT-NAMESPACE}` | Base URL of the repository hosting servers where the private repositories are located.                                                |
+| localUrl  | `http://localhost:8081`               | The URL to be used for the local server of Composer packages.                                                                         |
+| storeDir  | `./private_packages`                  | The folder where to used by Packman to store the packages. It can be local to each project (default), or shared by multiple projects. |
+
+## Commands
+
+<img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle"> runs automatically when composer runs, and, in general, it does the right things at the the right time. However, it is also possible to run commands on demand using `composer COMMAND` for local ones and `composer global COMMAND` for commands that apply to the global composer settings (e.g. `packman:config`).
+
+| Parameter      | Description                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| packman:config | Save the values for Packman parameters. Use `composer global packman:config` to save to the global `.composer/composer.json`. |  |
+| packman:update | Perform an update of all registered packages.                                                                                 |
+| packman:reset  | Reset the entire package store.                                                                                               |
+| packman:start  | Start the local web server that servers the packages to composer.                                                             |
+| packman:stop   | Stop the local web server that servers the packages to composer.                                                              |
+
 
 ## About Satis
 

@@ -8,6 +8,7 @@
     "prettier.trailingComma": "none",
     "cSpell.words": [
         "Proximify",
-        "satis"
+        "satis",
+        "symlink"
     ]
 }
