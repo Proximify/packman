@@ -30,7 +30,7 @@ defined('JSON_THROW_ON_ERROR') or define('JSON_THROW_ON_ERROR', 0);
  * @see src/Composer/Factory.php [has static methods]
  * @see src/Composer/Util/RemoteFilesystem.php
  * @see src/Composer/Json/JsonFile.php
- * 
+ *
  * Skip with: https://packagist.org/packages/list.json?vendor=proximify
  * https://packagist.org/apidoc
  */
@@ -64,7 +64,8 @@ class Packman
     private $remoteUrl;
     private $namespace;
     private $satisConfig;
-    private $versions;
+    private $satisStatus;
+    // private $versions;
     private $publicPackages;
     private $newRequire = [];
     private $buildCount;
@@ -103,18 +104,20 @@ class Packman
         $this->log("Packman...");
 
         // Always read the composer file to init properties
-        if (!$this->readComposerFile())
+        if (!$this->readComposerFile()) {
             return;
+        }
 
         $diff = $this->updateSatisFile($packages);
 
-        // Check if the satis file defines private repos
-        if (empty($this->satisConfig['require'])) {
+        $needsBuild = $this->satisStatus['needsBuild'] ?? false;
+        $needsReset = $this->satisStatus['needsReset'] ?? false;
+
+        if (!$needsBuild) {
             return;
         }
 
         // If no reset is needed, the server can be started right away
-        $needsReset = ($diff === true);
         $needsReset ? $this->stopServer() : $this->startServer();
 
         $this->buildSatis($diff);
@@ -135,8 +138,9 @@ class Packman
         $this->output = $output;
 
         // Read the composer file to init properties
-        if (!$this->readComposerFile())
+        if (!$this->readComposerFile()) {
             return;
+        }
 
         switch ($name) {
             case 'packman-list':
@@ -169,10 +173,10 @@ class Packman
     }
 
     /**
-     * The 'add' command of satis simply modifies the satis.json file. The same 
+     * The 'add' command of satis simply modifies the satis.json file. The same
      * generic build step has to be run after. We can edit satis.json directly
      * so the command is not used.
-     * 
+     *
      * @param array $package
      * @return void
      */
@@ -191,13 +195,9 @@ class Packman
 
     public function buildSatis($diff)
     {
-        $options = [
-            'reset' => ($diff === true)
-        ];
-
         $this->buildCount = 0;
 
-        $this->buildSatisRecursive($options, $diff);
+        $this->buildSatisRecursive($diff);
 
         $this->log("Satis build is complete");
     }
@@ -226,7 +226,7 @@ class Packman
      * @param array|bool $diff List of missing packages.
      * @return void
      */
-    protected function buildSatisRecursive(array $options, $diff): void
+    protected function buildSatisRecursive($diff): void
     {
         if ($diff) {
             $this->log($diff, 'Current differences');
@@ -236,21 +236,18 @@ class Packman
 
         $this->log("Building missing packages [$this->buildCount]");
 
-        if ($this->runSatisCommand('build', $options)) {
+        if ($this->runSatisCommand('build')) {
             $diff2 = $this->updateSatisFile();
 
             if (!$diff2 || !is_array($diff2) || !array_diff($diff2, $diff)) {
                 return; // there is nothing new to build
             }
 
-            // Never reset when recursing
-            $options['reset'] = false;
-
-            $this->buildSatisRecursive($options, $diff2);
+            $this->buildSatisRecursive($diff2);
         }
     }
 
-    protected function runSatisCommand(string $command, array $options): bool
+    protected function runSatisCommand(string $command, array $options = []): bool
     {
         $satisPath = self::$composer->getConfig()->get('bin-dir') . '/satis';
 
@@ -272,7 +269,7 @@ class Packman
         $cmd = "php '$satisPath' $command '$configPath' '$ourDir'";
 
         if ($options['useToken'] ?? false) {
-            // The stdin and the stderr need to be connected to the 
+            // The stdin and the stderr need to be connected to the
             // console's so the token can be entered when prompted
             $pipes = [
                 'stderr' => fopen('php://stderr', 'w')
@@ -287,9 +284,14 @@ class Packman
 
         $msg = "Running satis $command...";
 
-        if (($options['reset'] ?? false) && is_dir($ourDir)) {
+        $needsReset = $this->satisStatus['needsReset'] ?? false;
+
+        if ($needsReset && is_dir($ourDir)) {
             $cmd = "rm -rf '$ourDir' && $cmd";
             $msg = "Resetting satis. $msg";
+
+            // Disable the reset for subsequent calls
+            $this->satisStatus['needsReset'] = false;
         }
 
         $this->writeMsg(self::SEPARATOR);
@@ -468,6 +470,23 @@ class Packman
         $this->writeMsg($msg, self::VERBOSE);
     }
 
+    /**
+     * Get contents of remote URL.
+     *
+     * @param string   $fileUrl   The file URL
+     * @param resource $context   The stream context
+     *
+     * @return string|false The response contents or false on failure
+     */
+    protected function getRemoteContents($fileUrl)
+    {
+        $result = file_get_contents($fileUrl, false);
+
+        // $responseHeaders = $http_response_header ?? [];
+
+        return $result;
+    }
+
     private function addLocalServerToComposer()
     {
         $config = self::$composer->getConfig();
@@ -599,13 +618,14 @@ class Packman
         if (file_exists($filename)) {
             // Read entire file into an array
             foreach (file($filename) as $line) {
-                if (trim($line) == $dir)
+                if (trim($line) == $dir) {
                     return;
+                }
             }
         }
 
-        // Write the contents to the file using the FILE_APPEND flag to append the 
-        // content to the end of the file and the LOCK_EX flag to prevent anyone 
+        // Write the contents to the file using the FILE_APPEND flag to append the
+        // content to the end of the file and the LOCK_EX flag to prevent anyone
         // else writing to the file at the same time
         file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
     }
@@ -617,10 +637,11 @@ class Packman
      * previous satis config. True if the difference is greatest (needs reset),
      * or an array with the new repos that should be added.
      */
-    private function updateSatisFile(array $packages = [])
+    private function updateSatisFile(array $packages = []): array
     {
         // Init the internal satis config
         $this->satisConfig = [];
+        $this->satisStatus = [];
 
         // Add given packages to the active new requires.
         $this->newRequire += $packages;
@@ -680,18 +701,22 @@ class Packman
         unset($oldSatisConfig['repositories']);
         unset($oldSatisConfig['require']);
 
+        $newKeys = array_keys($require);
+
         if (self::encode($oldSatisConfig) == self::encode($config)) {
             $oldKeys = array_keys($oldSatisRequire);
-            $newKeys = array_keys($require);
+
+            $this->log($oldKeys, 'Old keys');
+            $this->log($newKeys, 'New keys');
 
             // Find new keys that are not among the old keys
             $diff = array_diff($newKeys, $oldKeys);
 
-            $this->log($oldKeys, 'Old keys');
-            $this->log($newKeys, 'New keys');
             $this->log($diff, 'Diff');
         } else {
-            $diff = true;
+            $diff = $newKeys;
+
+            $this->satisStatus['needsReset'] = true;
 
             $this->log("New satis file is too different from before");
             // $this->log($oldSatisConfig, 'old config');
@@ -706,6 +731,7 @@ class Packman
         // which gets rejected by the json schema of satis
         if ($require) {
             $config['require'] = $require;
+            $this->satisStatus['needsBuild'] = true;
         }
 
         // Save the new satis config
@@ -744,22 +770,5 @@ class Packman
         //     $commandEvent->getName(),
         //     $commandEvent
         // );
-    }
-
-    /**
-     * Get contents of remote URL.
-     *
-     * @param string   $fileUrl   The file URL
-     * @param resource $context   The stream context
-     *
-     * @return string|false The response contents or false on failure
-     */
-    protected function getRemoteContents($fileUrl)
-    {
-        $result = file_get_contents($fileUrl, false);
-
-        // $responseHeaders = $http_response_header ?? [];
-
-        return $result;
     }
 }
