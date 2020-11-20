@@ -4,20 +4,24 @@
 
 # Packman
 
-This Composer plugin creates one package manager per project and serves private packages to Composer from a local web server. It assumes that all private packages have the same namespace and are hosted at the same web service with a common URL prefix (e.g. `https://github.com/CompanyName/...`).
+This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project and the web server is started and stopped automatically when needed by a composer task. Packman assumes that all private packages have the same namespace that that they are hosted by the same web service (i.e. they a common URL prefix, such as `https://github.com/CompanyName/...`).
 
 ## How it works
 
-The plugin reads the `composer.json` of the root project looks for packages listed under `require` and `require-dev` whose namespace is equal to the root project's. Such packages are assumed to be private and are served from a **local package manager** using a composer repository (public ones will still be found by Composer at packagist.org before their local versions).
+Every time composer runs a task, the plugin reads the `composer.json` of the root project and looks for packages listed under `require` and `require-dev`. The packages whose namespace is equal to that of the root project are considered candidate private packages. The set of candidates is pruned by ignoring the ones publicly available from Packagist. The final set of private packages are downloaded from the their source location and served from a **local web server** acting as a composer-type repository.
 
 ### Steps
 
-1. Read the `composer.json` of the root project and search for requirements in the same namespace than the root project. Also consider the new packages being required via the CLI.
-2. Create a [Satis](https://composer.github.io/satis/) repository in the sub-folder **private_packages** with the selected packages.
-3. Start a PHP built-in web server on the **private_packages/repos** folder at `localhost:8081` for the duration of any Composer command, and close it when done.
-4. Tell Composer to also look for repositories in the temporary local packaging server at `localhost:8081`.
+1. Read the `composer.json` of the root project and search for requirements in the same namespace than the root project;
+2. Add any new package requested by the current Composer CLI command (e.g. `composer require my-org/my-package`);
+3. Ignore the candidate private packages that are available at Packagist;
+4. Create a [Satis](https://composer.github.io/satis/) repository in the sub-folder **private_packages/repos** with the selected packages;
+5. Start a PHP built-in web server on the **private_packages/repos** folder at `localhost:8081` for the duration of any Composer command, and close it when done;
+6. Tell Composer to also look for repositories in the temporary local packaging server at `localhost:8081`.
 
 ## Getting started
+
+Packman assumes that the standard ssh credentials required to fetch the needed repositories have been set up already. That's the usual case since you are probably using git to fetch your repositories.
 
 ### Method 1: Global install
 
@@ -27,7 +31,9 @@ Add the plugin to the global composer (usually located at `~/.composer`)
 $ composer global require proximify/packman
 ```
 
-This option is the best because it has to be done only once and it works for installing existing projects that come with private packages.
+The global method is the best because it only needs to be performed once and  works on all types of projects.
+
+There is nothing else to do if the default parameter values are appropriate. Moreover, the folder `private_packages` is added to `.gitignore` automatically, so that's also taken care of 🥳.
 
 ### Method 2: Per-project install
 
@@ -37,17 +43,11 @@ Add the plugin to the development dependencies of your project
 $ composer require proximify/packman --dev
 ```
 
-The per-project option does not work when installing existing projects with private dependencies in them because Packman will not exist until after the installation finishes. The packman method works with new projects because it can be installed before the private packages. One manual solution is to remove the private dependencies from a project, install it, and then put them back. Such a manual solutions solves the first-install problem.
+The method works well on new projects because Packman is installed when needed. However, when performing a `composer install` on an existing projects with private dependencies, Packman won't be available and the command will fail due to the repositories not being found. A possible, clunky solution for such cases is to remove the private dependencies from the project, install Packman, and then put them back. Since that's not super fun, we recommend the global method of installing Packman.
 
-### Next step
+## Using Symlink for active interdependent development
 
-There is nothing else to do if the default parameter values are appropriate. Moreover, the folder `private_packages` is added to `.gitignore` automatically, so that's also taken care of 🥳.
-
-> **Important:** Packman assumes that the standard ssh credentials required to fetch the needed repositories have been set up already.
-
-## Use Symlink for dev
-
-When developing multiple interdependent components at the same time, it is better to use symlink repositories than private ones fetched with <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle">. The reason for that is that the packages won't need to be updated via composer every time they change. You just modify a project and the change is "applied" to the copy of the package within the vendor folder of another project.
+When developing multiple interdependent components at the same time, it is better to use symlink repositories than private ones fetched with Packman. The reason for that is that the packages won't need to be updated via composer every time they change. You just modify a project and the change is "applied" to the copy of the package within the vendor folder of another project.
 
 It's a good idea to define your symlink repositories in the **global** composer settings. In that way, you don't have to remember to remove the repository specs from each local `composer.json` that needs it.
 
@@ -92,13 +92,13 @@ It's not a good idea to use symlink repositories to deploy to a production machi
 
 The assumption that private packages have the same namespace than that of the root project might not be correct. The namespace to use for private packages can be set via a custom parameter.
 
-Custom parameter values are set in the `composer.json` under the `extras` property. For example,
+Custom parameter values are set in the `composer.json` under the `extra` property. For example,
 
 ```json
 // composer.json
 {
     "name": "my-namespace/my-composer-project",
-    "extras": {
+    "extra": {
         "packman": {
             "namespace": "alt-my-namespace",
             "localUrl": "http://localhost:8081",
@@ -112,7 +112,7 @@ If the protocol of the **localUrl** is http instead of https, **packman** will s
 
 ### Parameters
 
-The paremeters are set in the global and/or local composer.json files under the keys `extras: {packman: { ... }}`.
+The paremeters are set in the global and/or local composer.json files under the keys `extra: {packman: { ... }}`.
 
 | Parameter | Default value                         | Description                                                                                                                           |
 | --------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |

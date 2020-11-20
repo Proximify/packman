@@ -92,7 +92,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
     public function getCapabilities()
     {
         return [
-            'Composer\Plugin\Capability\CommandProvider' => 'Proximify\ComposerPlugin\CommandProvider',
+            'Composer\Plugin\Capability\CommandProvider' => 'Proximify\ComposerPlugin\Console\CommandProvider',
         ];
     }
 

@@ -6,7 +6,7 @@
  * @license   MIT
  */
 
-namespace Proximify\ComposerPlugin\Command;
+namespace Proximify\ComposerPlugin\Console;
 
 use Proximify\ComposerPlugin\Packman;
 use Symfony\Component\Console\Input\InputInterface;
@@ -18,7 +18,7 @@ class PurgeCommand extends BaseCommand
 {
     protected function configure()
     {
-        $this->setName('packman-purge');
+        $this->setName('packman:purge');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)

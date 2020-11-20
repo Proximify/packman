@@ -6,7 +6,7 @@
  * @license   MIT
  */
 
-namespace Proximify\ComposerPlugin\Command;
+namespace Proximify\ComposerPlugin\Console;
 
 use Proximify\ComposerPlugin\Packman;
 use Symfony\Component\Console\Input\InputInterface;
@@ -14,15 +14,24 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Command\BaseCommand;
 
-class ResetCommand extends BaseCommand
+class BuildCommand extends BaseCommand
 {
+    public function __construct()
+    {
+        // Do this BEFORE calling the parent constructor because the base
+        // constructor calls configure().
+        // $this->cmdName = $name;
+
+        parent::__construct();
+    }
+
     protected function configure()
     {
-        $this->setName('packman-reset');
+        $this->setName('packman:build');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('reset', $input, $output);
+        (new Packman())->runCommand('build', $input, $output);
     }
 }
