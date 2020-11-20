@@ -86,7 +86,7 @@ to get the package defined as the latest development commit of the master branch
 
 ### Deployment to Prod
 
-It's not a good idea to use symlink repositories to deploy to a production machine. The symlink repositories are only meant for local development. In contrast, Packman can be used to deploy to a production server (e.g. as a zip bundle). But, if the intent is to fetch the packages on the production server, then the default Packman solution of hosting private packages on `localhost` won't work if that URL endpoint is not authenticated in some way. In other words, **Packman is for local machines only**. If used on a server, the Packman URL (`localUrl`) should only be accessible **only** from the local machine.
+It's not a good idea to use symlink repositories to deploy to a production machine. The symlink repositories are only meant for local development. In contrast, <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle"> can be used to deploy to a production server (e.g. as a zip bundle). But, if the intent is to fetch the packages on the production server, then the default Packman solution of hosting private packages on `localhost` won't work if that URL is not authenticated in some way. In other words, **Packman is for local machines only**. If used on a server, the Packman URL (`localUrl`) should only be accessible **only** from the local machine.
 
 ## Options
 
@@ -123,7 +123,7 @@ The paremeters are set in the global and/or local composer.json files under the 
 
 ## Commands
 
-<img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle"> runs automatically when composer runs, and, in general, it does the right things at the the right time. However, it is also possible to run commands on demand using `composer COMMAND` for local ones and `composer global COMMAND` for commands that apply to the global composer settings (e.g. `packman:config`).
+<img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle"> runs automatically when composer runs, and, in general, it does the right thing at the right time. However, it is also possible to run commands on demand using `composer COMMAND` for local ones and `composer global COMMAND` for those that edit the global composer settings (e.g. `packman:config`).
 
 | Parameter      | Description                                                                                                                   |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------- |

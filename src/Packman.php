@@ -99,7 +99,7 @@ class Packman
         self::$composer = $composer;
     }
 
-    public function start(array $packages = [])
+    public function start(array $packages = [], $reset = false)
     {
         $this->log("Packman...");
 
@@ -109,6 +109,10 @@ class Packman
         }
 
         $diff = $this->updateSatisFile($packages);
+
+        if ($reset) {
+            $this->satisStatus['needsReset'] = true;
+        }
 
         $needsBuild = $this->satisStatus['needsBuild'] ?? false;
         $needsReset = $this->satisStatus['needsReset'] ?? false;
@@ -147,6 +151,10 @@ class Packman
                 return $this->listSatisRepos();
             case 'packman-update':
                 return $this->buildSatis($this->updateSatisFile());
+            case 'purge':
+                return $this->runSatisCommand('purge');
+            case 'reset':
+                return $this->start([], true);
         }
     }
 
@@ -204,6 +212,8 @@ class Packman
 
     public function addPackages(array $packages)
     {
+        // The start() method was supposedly already called, so only
+        // call it again if there are new packages
         if ($packages) {
             $this->start($packages);
         }
@@ -321,7 +331,7 @@ class Packman
      *
      * @return void
      */
-    protected function startServer()
+    public function startServer()
     {
         if (self::$serverHandle) {
             return;
@@ -330,6 +340,10 @@ class Packman
         $target = self::OUTPUT_DIR;
 
         if (!is_dir($target)) {
+            return;
+        }
+
+        if (!$this->settings && !$this->readComposerFile()) {
             return;
         }
 

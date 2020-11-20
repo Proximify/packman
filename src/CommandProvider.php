@@ -31,6 +31,8 @@ class CommandProvider implements CommandProviderCapability
             $commands[] = new Command($name);
         }
 
+        $commands[] = new Command\PurgeCommand();
+
         return $commands;
     }
 }

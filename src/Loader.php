@@ -118,12 +118,17 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
         ];
     }
 
-    public function preCommandRun(PreCommandRunEvent $event)
+    public static function needsWebServer($event): bool
     {
         $commands = ['install', 'update', 'require'];
         $cmd = $event->getCommand();
 
-        if (!in_array($cmd, $commands)) {
+        return in_array($cmd, $commands);
+    }
+
+    public function preCommandRun(PreCommandRunEvent $event)
+    {
+        if (!self::needsWebServer($event)) {
             return;
         }
 
@@ -149,17 +154,12 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
         $this->packman->start($require);
     }
 
-    // public function initCommand($event)
-    // {
-    //     // $event->getComposer();
-    //     $name = $event->getName();
-    //     $args = $event->getArguments();
+    public function initCommand($event)
+    {
+        // print "INIT:" . get_class($event);
 
-    //     print_r("\nEvent init name: $name\n");
-    //     print_r("\nArguments:\n");
-    //     print_r(get_class($event));
-    //     print_r("\n");
-    // }
+        // $this->packman->start();
+    }
 
     // public function preFileDownload(PreFileDownloadEvent $event)
     // {
