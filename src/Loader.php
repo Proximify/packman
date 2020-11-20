@@ -45,8 +45,6 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
      */
     public function activate(Composer $composer, IOInterface $io)
     {
-        error_log("\nPackman was loaded\n");
-
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
 
@@ -103,14 +101,12 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
      *
      * @link https://getcomposer.org/doc/articles/plugins.md#event-handler
      * @link https://getcomposer.org/doc/articles/scripts.md#event-names
+     * @link src/Composer/Command/RequireCommand.php LINE 291
      *
      * @return void
      */
     public static function getSubscribedEvents()
     {
-        //'require'
-        // see src/Composer/Command/RequireCommand.php LINE 291
-
         return [
             // 'init' => 'initCommand',
             'pre-command-run' => 'preCommandRun', // src/Composer/Plugin/PreCommandRunEvent.php
@@ -154,23 +150,13 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
         $this->packman->start($require);
     }
 
-    public function initCommand($event)
-    {
-        // print "INIT:" . get_class($event);
-
-        // $this->packman->start();
-    }
+    // public function initCommand($event)
+    // {
+    //     $this->packman->start();
+    // }
 
     // public function preFileDownload(PreFileDownloadEvent $event)
     // {
     //     $name = $event->getName();
-
-    //     // https://repo.packagist.org/p2/proximify/glot-renderer.json
-    //     // https://repo.packagist.org/p2/proximify/glot-renderer~dev.json
-    //     // http://localhost:8081/packages.json
-    //     print_r("\nEvent pre run name: $name\n");
-    //     print_r("\nArguments:\n");
-    //     print_r([$event->getProcessedUrl()]);
-    //     print_r("\n");
     // }
 }

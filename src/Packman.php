@@ -101,8 +101,6 @@ class Packman
 
     public function start(array $packages = [], $reset = false)
     {
-        $this->log("Packman...");
-
         // Always read the composer file to init properties
         if (!$this->readComposerFile()) {
             return;
@@ -304,7 +302,7 @@ class Packman
             $this->satisStatus['needsReset'] = false;
         }
 
-        $this->writeMsg(self::SEPARATOR);
+        $this->log(self::SEPARATOR);
         $this->writeMsg($msg);
         $this->log($cmd);
 
@@ -313,15 +311,15 @@ class Packman
         $success = ($status['code'] == 0);
         $level = $success ? self::VERBOSE : self::NORMAL;
 
-        if ($status['out']) {
-            $this->writeMsg(trim($status['out']), $level);
+        if ($msg = trim($status['out'])) {
+            $this->writeMsg($msg, $level);
         }
 
-        if ($status['err']) {
-            $this->writeError(trim($status['err']), $level);
+        if ($msg = self::cleanSatisError($status['err'], $level)) {
+            $this->writeError($msg, $level);
         }
 
-        $this->writeMsg(self::SEPARATOR);
+        $this->log(self::SEPARATOR);
 
         return $success;
     }
@@ -365,7 +363,7 @@ class Packman
             $host .= ":$port";
         }
 
-        $this->log("Creating web server at $host from $target...");
+        $this->writeMsg("Starting web server...");
 
         $cmd = "php -S '$host' -t '$target'";
 
@@ -503,11 +501,8 @@ class Packman
 
     private function addLocalServerToComposer()
     {
-        $config = self::$composer->getConfig();
-
-        $config->merge(['secure-http' => false]);
-
-        // $secureHttp = $config->get('secure-http');
+        // Disable the secure HTTP restriction (or 'disable-tls' => false)
+        $this->setComposerConfig('secure-http', false);
 
         $rm = self::$composer->getRepositoryManager();
 
@@ -758,6 +753,15 @@ class Packman
         return $diff;
     }
 
+    private function setComposerConfig(string $key, $value)
+    {
+        $config = [
+            'config' => [$key => $value]
+        ];
+
+        self::$composer->getConfig()->merge($config);
+    }
+
     private function getComposerSettings()
     {
         $compFile = Factory::getComposerFile();
@@ -784,5 +788,38 @@ class Packman
         //     $commandEvent->getName(),
         //     $commandEvent
         // );
+    }
+
+    private static function cleanSatisError($msg, $level)
+    {
+        if ($level == self::VERBOSE) {
+            return;
+        }
+
+        // Remove the <warning></warning> tag
+        $msg = strip_tags($msg);
+
+        $annoying = 'The "proximify/packman" plugin was skipped because it requires a Plugin API version ("^2.0") that does not match your Composer installation ("1.1.0"). You may need to run composer update with the "--no-plugins" option.';
+
+        $msg = str_replace($annoying, '', $msg);
+
+        return trim(self::trim_all($msg));
+    }
+
+    static function trim_all($str, $what = NULL, $with = ' ')
+    {
+        if ($what === NULL) {
+            //  Character      Decimal      Use
+            //  "\0"            0           Null Character
+            //  "\t"            9           Tab
+            //  "\n"           10           New line
+            //  "\x0B"         11           Vertical Tab
+            //  "\r"           13           New Line in Mac
+            //  " "            32           Space
+
+            $what   = "\\x00-\\x20";    //all white-spaces and control chars
+        }
+
+        return trim(preg_replace("/[" . $what . "]+/", $with, $str), $what);
     }
 }
