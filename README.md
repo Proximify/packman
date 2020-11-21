@@ -4,11 +4,11 @@
 
 # Packman
 
-This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project and the web server is started and stopped automatically when needed by a composer task. Packman assumes that all private packages have the same namespace that that they are hosted by the same web service (i.e. they a common URL prefix, such as `https://github.com/CompanyName/...`).
+This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project. A local web server is started and stopped automatically when needed by a composer task (using URL `http://localhost:8081` by default). Packman assumes that all private packages have the same namespace and that their source is hosted at a common location (e.g. `https://github.com/CompanyName/...`).
 
 ## How it works
 
-Every time composer runs a task, the plugin reads the `composer.json` of the root project and looks for packages listed under `require` and `require-dev`. The packages whose namespace is equal to that of the root project are considered candidate private packages. The set of candidates is pruned by ignoring the ones publicly available from Packagist. The final set of private packages are downloaded from the their source location and served from a **local web server** acting as a composer-type repository.
+Whenever a composer task is run from the CLI, the plugin reads the `composer.json` of the root project and looks for packages listed under `require` and `require-dev`. The packages whose namespace is equal to that of the root project are considered candidate private packages. The set of candidates is pruned by ignoring the ones publicly available from Packagist. The final set of private packages are downloaded from the their source location and served from a **local web server** acting as a composer-type repository.
 
 ### Steps
 
