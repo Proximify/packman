@@ -21,29 +21,21 @@ defined('JSON_THROW_ON_ERROR') or define('JSON_THROW_ON_ERROR', 0);
 
 /**
  * Package Manager
- *
- * Note: Get RootPackage with $composer->getPackage()->getMinimumStability()
- *
- * @see findBestVersionAndNameForPackage in src/Composer/Command/InitCommand.php
- * $this->normalizeRequirements($requires);
- * @see src/Composer/InstalledVersions.php
- * @see src/Composer/Factory.php [has static methods]
- * @see src/Composer/Util/RemoteFilesystem.php
- * @see src/Composer/Json/JsonFile.php
- *
- * Skip with: https://packagist.org/packages/list.json?vendor=proximify
- * https://packagist.org/apidoc
  */
 class Packman
 {
     const YELLOW_CIRCLE = "\u{1F7E1}";
     const RED_CIRCLE = "\u{1F534}";
-    // const GREEN_CIRCLE = "\u{1F7E2}";
-    // const PACKMAN_ICON = "\u{25D4}";
-    const SEPARATOR = '-----------------------------------';
+    const SEPARATOR = '------------';
 
     const NORMAL = IOInterface::NORMAL;
     const VERBOSE = IOInterface::VERBOSE;
+
+    const PACKMAN_DIR_KEY = 'packmanDir';
+    const NAMESPACE_KEY = 'namespace';
+    const REMOTE_DIR_KEY = 'remoteUrl';
+    const LOCAL_URL_KEY = 'localUrl';
+    const SYMLINK_DIR_KEY = 'symlinkDir';
 
     /**
      * @var int Counter of Packman current instances. Used to remove
@@ -53,7 +45,11 @@ class Packman
 
     /** @var mixed Handle for a web server process. */
     private static $serverHandle;
+
+    /** @var mixed Original composer object provided during plugin load. */
     private static $composer;
+
+    /** @var mixed The IO object of composer provided at load time. */
     private static $io;
 
     private $satisConfig;
@@ -93,11 +89,6 @@ class Packman
 
     public function start(array $packages = [], $reset = false)
     {
-        // Always read the composer file to init properties
-        // if (!$this->readComposerFile()) {
-        //     return;
-        // }
-
         $diff = $this->updateSatisFile($packages);
 
         if ($reset) {
@@ -121,6 +112,8 @@ class Packman
             $this->startServer();
         }
 
+        $this->addSymlinkRepositories();
+        $this->removeUnusedRepositories();
         $this->addLocalServerToComposer();
     }
 
@@ -130,11 +123,6 @@ class Packman
         OutputInterface $output
     ) {
         $this->output = $output;
-
-        // Read the composer file to init properties
-        // if (!$this->readComposerFile()) {
-        //     return;
-        // }
 
         switch ($name) {
             case 'list':
@@ -147,23 +135,6 @@ class Packman
                 return $this->start([], true);
         }
     }
-
-    // public function checkComposerFile()
-    // {
-    //     $homepage = strtolower($this->satisConfig['homepage']);
-    //     $repos = $this->settings['repositories'] ?? [];
-
-    //     foreach ($repos as $repo) {
-    //         $type = strtolower($repo['type'] ?? '');
-    //         $url = strtolower($repo['url'] ?? '');
-
-    //         if ($type == 'composer' && $url == $homepage) {
-    //             return true;
-    //         }
-    //     }
-
-    //     return false;
-    // }
 
     public function listSatisRepos()
     {
@@ -263,7 +234,7 @@ class Packman
             }
         }
 
-        $configPath = $this->getSatisFile();
+        $configPath = $this->getSatisFilename();
         $ourDir = $this->getSatisDir();
 
         $cmd = "php '$satisPath' $command '$configPath' '$ourDir'";
@@ -321,7 +292,7 @@ class Packman
      *
      * @return void
      */
-    public function startServer()
+    public function startServer(): void
     {
         if (self::$serverHandle) {
             return;
@@ -332,10 +303,6 @@ class Packman
         if (!is_dir($target)) {
             return;
         }
-
-        // if (!$this->settings && !$this->readComposerFile()) {
-        //     return;
-        // }
 
         if (function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
             $cb = [$this, 'stopServer'];
@@ -354,23 +321,6 @@ class Packman
 
         self::$serverHandle = proc_open($cmd, [], $pipes);
     }
-
-    // protected function readComposerFile(): bool
-    // {
-    //     // Use $json = file_get_contents(Factory::getComposerFile()); ???
-    //     $this->settings = self::readJsonFile('composer.json');
-
-    //     // $installed = InstalledVersions::getInstalledPackages();
-    //     // $versions = [];
-
-    //     // foreach ($installed as $name) {
-    //     //     $versions[$name] = InstalledVersions::getVersion($name);
-    //     // }
-
-    //     // $this->versions = $versions;
-
-    //     return true;
-    // }
 
     protected static function execute(string $cmd, array $options = []): array
     {
@@ -462,18 +412,67 @@ class Packman
         return $result;
     }
 
+    private function addSymlinkRepositories()
+    {
+        $symlinkDir = $this->getPackmanConfig(self::SYMLINK_DIR_KEY);
+
+        if (!$symlinkDir || !is_dir($symlinkDir)) {
+            return;
+        }
+
+        $dir = new \DirectoryIterator($symlinkDir);
+        $own = [];
+
+        foreach ($dir as $fileinfo) {
+            if (!$fileinfo->isDot()) {
+                $own[] = $fileinfo->getFilename();
+            }
+        }
+
+        // The set of private repositories is the one that
+        // is kept in the satis.json file
+        $satis = $this->satisConfig['require'] ?? [];
+
+        $this->log($own, 'own');
+        $this->log($satis, 'satis');
+    }
+
+    private function removeUnusedRepositories()
+    {
+        $repos = $this->getSatisRepoDependencies();
+
+        $this->log($repos, 'active');
+    }
+
     private function addLocalServerToComposer()
     {
         // Disable the secure HTTP restriction (or 'disable-tls' => false)
         $this->setComposerConfig('secure-http', false);
 
-        $rm = self::$composer->getRepositoryManager();
-
-        $repoConfig = [
+        $config = [
             'url' => $this->satisConfig['homepage']
         ];
 
-        $repo = $rm->createRepository('composer', $repoConfig);
+        $this->addRepository('composer', $config);
+    }
+
+    private function addSymlinkRepo(string $path)
+    {
+        $config = [
+            'url' => $path,
+            'options' => [
+                'symlink' => true
+            ]
+        ];
+
+        $this->addRepository('path', $config);
+    }
+
+    private function addRepository(string $type, $config): void
+    {
+        $rm = self::$composer->getRepositoryManager();
+
+        $repo = $rm->createRepository($type, $config);
 
         $rm->addRepository($repo);
     }
@@ -539,8 +538,6 @@ class Packman
             $response = json_decode($this->getRemoteContents($url, []), true);
             $this->publicPackages = $response['packageNames'] ?? [];
         }
-
-        // $this->log($this->publicPackages, 'public packages');
 
         return $this->publicPackages;
     }
@@ -640,7 +637,7 @@ class Packman
 
         // Create the private_repositories folder if it doesn't exist
         // It is the parent dir of the satis file
-        $rootDir = $this->getStoreDir();
+        $rootDir = $this->getPackmanDir();
 
         if (!file_exists($rootDir)) {
             mkdir($rootDir, 0744, true);
@@ -670,7 +667,7 @@ class Packman
         $config['homepage'] = $this->getLocalUrl();
 
         // Check if the file is identical up to this point
-        $oldSatisConfig = self::readJsonFile($this->getSatisFile());
+        $oldSatisConfig = self::readJsonFile($this->getSatisFilename());
         $oldSatisRequire = $oldSatisConfig['require'] ?? [];
 
         // Remove old repositories and require before comparing...
@@ -714,13 +711,13 @@ class Packman
         $this->satisConfig = $config;
 
         if ($diff) {
-            $this->saveJsonFile($this->getSatisFile(), $config);
+            $this->saveJsonFile($this->getSatisFilename(), $config);
         }
 
         return $diff;
     }
 
-    private function setComposerConfig(string $key, $value)
+    private function setComposerConfig(string $key, $value): void
     {
         $config = [
             'config' => [$key => $value]
@@ -734,57 +731,32 @@ class Packman
         return self::$composer->getPluginManager()->getGlobalComposer();
     }
 
-    private static function getPackmanConfig(?string $key = null)
+    private function getPackmanConfig(?string $key = null)
     {
+        // Highest priority config values are set first
+        $merged = $this->readJsonFile($this->getPackmanFilename());
+
         $local = self::$composer->getPackage()->getExtra();
         $global = self::getGlobalComposer()->getPackage()->getExtra();
 
-        $merged = ($local['packman'] ?? []) + ($global['packman'] ?? []);
+        $merged += ($local['packman'] ?? []) + ($global['packman'] ?? []);
 
         return $key ? ($merged[$key] ?? null) : $merged;
     }
 
-    // private function getComposerSettings()
-    // {
-    //     $compFile = Factory::getComposerFile();
-    //     $lockFile = Factory::getLockFile($compFile);
-
-    //     $json = new JsonFile($compFile);
-
-    //     $settings = file_get_contents($json->getPath());
-
-    //     $locks = file_exists($lockFile) ? file_get_contents($lockFile) : null;
-    // }
-
-    private function dispatch($name, $input, $output)
-    {
-        // From src/Composer/Command/RequireCommand.php
-        // $commandEvent = new CommandEvent(
-        //     PluginEvents::COMMAND,
-        //     $name,
-        //     $input,
-        //     $output
-        // );
-
-        // self::$composer->getEventDispatcher()->dispatch(
-        //     $commandEvent->getName(),
-        //     $commandEvent
-        // );
-    }
-
-    private function getRequires()
+    private function getRequires(): array
     {
         return self::$composer->getPackage()->getRequires();
     }
 
-    private function getDevRequires()
+    private function getDevRequires(): array
     {
         return self::$composer->getPackage()->getDevRequires();
     }
 
     private function getNamespace(): ?string
     {
-        $namespace = $this->getPackmanConfig('namespace');
+        $namespace = $this->getPackmanConfig(self::NAMESPACE_KEY);
 
         if ($namespace) {
             return $namespace;
@@ -804,14 +776,14 @@ class Packman
 
     private function getRemoteUrl(): string
     {
-        $url = $this->getPackmanConfig('remoteUrl');
+        $url = $this->getPackmanConfig(self::REMOTE_DIR_KEY);
 
         return $url ?: 'https://github.com/';
     }
 
     private function getLocalUrl(): string
     {
-        $url = $this->getPackmanConfig('localUrl');
+        $url = $this->getPackmanConfig(self::LOCAL_URL_KEY);
 
         return $url ?: 'http://localhost:8081';
     }
@@ -830,27 +802,32 @@ class Packman
         return $host;
     }
 
-    private function getStoreDir(): string
+    private function getPackmanDir(): string
     {
-        $dir = $this->getPackmanConfig('storeDir');
+        $dir = $this->getPackmanConfig(self::PACKMAN_DIR_KEY);
 
-        return $dir ?: 'private_packages';
+        return $dir ?: 'packman';
+    }
+
+    private function getPackmanFilename(): string
+    {
+        return $this->getPackmanDir() . '/packman.json';
     }
 
     private function getSatisDir(): string
     {
-        return $this->getStoreDir() . '/repos';
+        return $this->getPackmanDir() . '/repos';
     }
 
-    private function getSatisFile(): string
+    private function getSatisFilename(): string
     {
-        return $this->getStoreDir() . '/satis.json';
+        return $this->getPackmanDir() . '/satis.json';
     }
 
-    private static function cleanSatisError($msg, $level)
+    private static function cleanSatisError(string $msg, $level): string
     {
         if ($level == self::VERBOSE) {
-            return;
+            return $msg;
         }
 
         // Remove the <warning></warning> tag
@@ -879,4 +856,50 @@ class Packman
 
         return trim(preg_replace("/[" . $what . "]+/", $with, $str), $what);
     }
+
+    // public function checkComposerFile()
+    // {
+    //     $homepage = strtolower($this->satisConfig['homepage']);
+    //     $repos = $this->settings['repositories'] ?? [];
+
+    //     foreach ($repos as $repo) {
+    //         $type = strtolower($repo['type'] ?? '');
+    //         $url = strtolower($repo['url'] ?? '');
+
+    //         if ($type == 'composer' && $url == $homepage) {
+    //             return true;
+    //         }
+    //     }
+
+    //     return false;
+    // }
+
+    // protected function readComposerFile(): bool
+    // {
+    //     // Use $json = file_get_contents(Factory::getComposerFile()); ???
+    //     $this->settings = self::readJsonFile('composer.json');
+
+    //     // $installed = InstalledVersions::getInstalledPackages();
+    //     // $versions = [];
+
+    //     // foreach ($installed as $name) {
+    //     //     $versions[$name] = InstalledVersions::getVersion($name);
+    //     // }
+
+    //     // $this->versions = $versions;
+
+    //     return true;
+    // }
+
+    // private function getComposerSettings()
+    // {
+    //     $compFile = Factory::getComposerFile();
+    //     $lockFile = Factory::getLockFile($compFile);
+
+    //     $json = new JsonFile($compFile);
+
+    //     $settings = file_get_contents($json->getPath());
+
+    //     $locks = file_exists($lockFile) ? file_get_contents($lockFile) : null;
+    // }
 }
