@@ -414,7 +414,7 @@ class Packman
 
     private function addSymlinkRepositories()
     {
-        $symlinkDir = $this->getPackmanConfig(self::SYMLINK_DIR_KEY);
+        $symlinkDir = $this->getConfigValue(self::SYMLINK_DIR_KEY);
 
         if (!$symlinkDir || !is_dir($symlinkDir)) {
             return;
@@ -731,17 +731,18 @@ class Packman
         return self::$composer->getPluginManager()->getGlobalComposer();
     }
 
-    private function getPackmanConfig(?string $key = null)
+    private function getConfigValue(string $key)
     {
         // Highest priority config values are set first
-        $merged = $this->readJsonFile($this->getPackmanFilename());
+        $merged = ($key == self::PACKMAN_DIR_KEY) ? [] :
+            $this->readJsonFile($this->getPackmanFilename());
 
         $local = self::$composer->getPackage()->getExtra();
         $global = self::getGlobalComposer()->getPackage()->getExtra();
 
         $merged += ($local['packman'] ?? []) + ($global['packman'] ?? []);
 
-        return $key ? ($merged[$key] ?? null) : $merged;
+        return $merged[$key] ?? null;
     }
 
     private function getRequires(): array
@@ -756,7 +757,7 @@ class Packman
 
     private function getNamespace(): ?string
     {
-        $namespace = $this->getPackmanConfig(self::NAMESPACE_KEY);
+        $namespace = $this->getConfigValue(self::NAMESPACE_KEY);
 
         if ($namespace) {
             return $namespace;
@@ -776,14 +777,14 @@ class Packman
 
     private function getRemoteUrl(): string
     {
-        $url = $this->getPackmanConfig(self::REMOTE_DIR_KEY);
+        $url = $this->getConfigValue(self::REMOTE_DIR_KEY);
 
         return $url ?: 'https://github.com/';
     }
 
     private function getLocalUrl(): string
     {
-        $url = $this->getPackmanConfig(self::LOCAL_URL_KEY);
+        $url = $this->getConfigValue(self::LOCAL_URL_KEY);
 
         return $url ?: 'http://localhost:8081';
     }
@@ -804,7 +805,7 @@ class Packman
 
     private function getPackmanDir(): string
     {
-        $dir = $this->getPackmanConfig(self::PACKMAN_DIR_KEY);
+        $dir = $this->getConfigValue(self::PACKMAN_DIR_KEY);
 
         return $dir ?: 'packman';
     }
