@@ -199,9 +199,9 @@ class Packman
      */
     protected function buildSatisRecursive($diff): void
     {
-        if ($diff) {
-            $this->log($diff, 'Current differences');
-        }
+        // if ($diff) {
+        //     $this->log($diff, 'Current differences');
+        // }
 
         $this->buildCount++;
 
@@ -265,9 +265,9 @@ class Packman
             $this->satisStatus['needsReset'] = false;
         }
 
-        $this->log(self::SEPARATOR);
+        // $this->log(self::SEPARATOR);
         $this->writeMsg($msg);
-        $this->log($cmd);
+        // $this->log($cmd);
 
         $status = self::execute($cmd, ['pipes' => $pipes]);
 
@@ -282,7 +282,7 @@ class Packman
             $this->writeError($msg, $level);
         }
 
-        $this->log(self::SEPARATOR);
+        // $this->log(self::SEPARATOR);
 
         return $success;
     }
@@ -415,6 +415,14 @@ class Packman
     private function addSymlinkRepositories()
     {
         $symlinkDir = $this->getConfigValue(self::SYMLINK_DIR_KEY);
+        $home = getenv('HOME');
+
+        if ($symlinkDir && $symlinkDir[0] == '~' && $home) {
+            $symlinkDir = $home . '/' . substr($symlinkDir, 1);
+        }
+
+        $symlinkDir = realpath($symlinkDir);
+        $this->log($symlinkDir, 'sym');
 
         if (!$symlinkDir || !is_dir($symlinkDir)) {
             return;
@@ -424,8 +432,12 @@ class Packman
         $own = [];
 
         foreach ($dir as $fileinfo) {
-            if (!$fileinfo->isDot()) {
-                $own[] = $fileinfo->getFilename();
+            if (!$fileinfo->isDot() && $fileinfo->isDir()) {
+                $dir = $fileinfo->getPathname();
+
+                if (is_file("$dir/composer.json")) {
+                    $own[] = $fileinfo->getFilename();
+                }
             }
         }
 
@@ -439,6 +451,8 @@ class Packman
 
     private function removeUnusedRepositories()
     {
+        // Read the packages.json pf satis to see what is
+        // actually downloaded
         $repos = $this->getSatisRepoDependencies();
 
         $this->log($repos, 'active');
@@ -544,7 +558,9 @@ class Packman
 
     private function getDeclaredRepos(): array
     {
-        $this->log($this->newRequire, 'new require');
+        if ($this->newRequire) {
+            $this->log($this->newRequire, 'new require');
+        }
 
         $packages = $this->getRequires()  +
             $this->getDevRequires() +
@@ -633,7 +649,7 @@ class Packman
             return false;
         }
 
-        $this->log($declared, 'Declared');
+        // $this->log($declared, 'Declared');
 
         // Create the private_repositories folder if it doesn't exist
         // It is the parent dir of the satis file
@@ -679,13 +695,13 @@ class Packman
         if (self::encode($oldSatisConfig) == self::encode($config)) {
             $oldKeys = array_keys($oldSatisRequire);
 
-            $this->log($oldKeys, 'Old keys');
-            $this->log($newKeys, 'New keys');
+            // $this->log($oldKeys, 'Old keys');
+            // $this->log($newKeys, 'New keys');
 
             // Find new keys that are not among the old keys
             $diff = array_diff($newKeys, $oldKeys);
 
-            $this->log($diff, 'Diff');
+            // $this->log($diff, 'Diff');
         } else {
             $diff = $newKeys;
 
