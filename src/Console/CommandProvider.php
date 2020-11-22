@@ -6,7 +6,7 @@
  * @license   MIT
  */
 
-namespace Proximify\ComposerPlugin\Console;
+namespace Proximify\Packman\Console;
 
 use Composer\Plugin\Capability\CommandProvider as CommandProviderCapability;
 use Symfony\Component\Console\Input\InputInterface;

@@ -6,7 +6,11 @@
 
 This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project. A local web server is started and stopped automatically when needed by a composer task (usually `http://localhost:8081`). Packman assumes that all private packages have the same namespace and that their source is hosted at a common location (e.g. `https://github.com/CompanyName/...`).
 
-## How it works
+## Terminology
+
+In Composer terminology, a **repository** is a set of packages, and a **package** in a commit of a repository. The commit can be identified in relative terms by version tag and/or a brach name. A **private repository** is a set of **private packages**. Packages can be required in relative terms based on their [semantic version](#semantic-versioning).
+
+## How Packman works
 
 Whenever a composer task is run from the CLI, the plugin reads the `composer.json` of the root project and looks for packages listed under `require` and `require-dev`. The packages whose namespace is equal to that of the root project are considered candidate private packages. The set of candidates is pruned by ignoring the ones publicly available from Packagist. The final set of private packages are downloaded from the their source location and served from a **local web server** acting as a composer-type repository.
 
@@ -156,6 +160,14 @@ The paremeters are set in the global and/or local composer.json files under the 
 | packman:reset  | Reset the entire package store.                                                                                               |
 | packman:start  | Start the local web server that servers the packages to composer.                                                             |
 | packman:stop   | Stop the local web server that servers the packages to composer.                                                              |
+
+## Semantic versioning
+
+By using the git tag system, one can attach a semantic version ([semver](https://semver.org/)) to a commit in order to make it referentiable in relative terms. For example, package "vendor/repo:1.2.0-beta" is the commit in the master brach that has the tag '1.2.0-beta'.
+
+The version labels attached to the numbers, "-label", are an additional way to communicate information about the state and intent of the code at a particular commit (`dev`, `alpha`, `beta`, `beta1`, `rc`, `rc1`). A no-labelled number is a higher version than the same number with a label. An untagged commit is a package with a version number that's higher than that of the last commit, but lower than a "-dev" version with the same number.
+
+When asking for a "vendor/repo:dev-master" **package**, one is asking for the latest commit in the `master` branch of the "vendor/repo" repository with label `-dev` or higher. For example, a `-alpha` labelled version number would meet that condition.
 
 ## About Satis
 

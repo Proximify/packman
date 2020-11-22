@@ -6,7 +6,7 @@
  * @license   MIT
  */
 
-namespace Proximify\ComposerPlugin;
+namespace Proximify\Packman;
 
 use Composer\Composer;
 use Composer\IO\IOInterface;
@@ -92,7 +92,7 @@ class Loader implements PluginInterface, Capable, EventSubscriberInterface
     public function getCapabilities()
     {
         return [
-            'Composer\Plugin\Capability\CommandProvider' => 'Proximify\ComposerPlugin\Console\CommandProvider',
+            'Composer\Plugin\Capability\CommandProvider' => 'Proximify\Packman\Console\CommandProvider',
         ];
     }
 

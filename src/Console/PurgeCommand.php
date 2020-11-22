@@ -6,9 +6,9 @@
  * @license   MIT
  */
 
-namespace Proximify\ComposerPlugin\Console;
+namespace Proximify\Packman\Console;
 
-use Proximify\ComposerPlugin\Packman;
+use Proximify\Packman\Packman;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Output\OutputInterface;
