@@ -12,7 +12,7 @@ In Composer terminology, a **repository** is a set of packages, and a **package*
 
 A **private repository** is a set of **private packages**. Packages can be required by other packages in relative terms based on their [semantic version](#semantic-versioning). That is, instead of specifying a commit hash, one can request the newest package that matches a version pattern, such as `1.1.*`.
 
-After running `composer install` or `composer update`, the `require` pattern of each package is **locked** to the specific **commit hash** that **satisfies** the requirement.
+After running composer `install`, `update` or `require`, the resulting `require` pattern of each package is **locked** to the specific **commit hash** that **satisfies** the requirement.
 
 ## How Packman works
 

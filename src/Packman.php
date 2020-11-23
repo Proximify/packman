@@ -142,15 +142,6 @@ class Packman
         // $this->log(array_keys($this->getRepositories()), 'Active repos');
     }
 
-    public function addPackages(array $options)
-    {
-        // The start() method was supposedly already called, so only
-        // call it again if there are new packages
-        if ($packages = $options['packages'] ?? false) {
-            $this->start($packages);
-        }
-    }
-
     public function listSatisRepos()
     {
         // print_r($this->getDeclaredRepos());

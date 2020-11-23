@@ -119,22 +119,18 @@ class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
         ];
     }
 
-    public static function needsWebServer($event): bool
-    {
-        $commands = ['install', 'update', 'require'];
-        $cmd = $event->getCommand();
-
-        return in_array($cmd, $commands);
-    }
-
     public function preCommandRun(PreCommandRunEvent $event)
     {
-        if (!self::needsWebServer($event)) {
+        $commands = ['install', 'update', 'require', 'require-dev'];
+        $cmd = $event->getCommand();
+
+        if (!in_array($cmd, $commands)) {
             return;
         }
 
         $input = $event->getInput();
-        $require = [];
+
+        $options = [];
 
         if ($input->hasArgument('packages')) {
             $packages = $input->getArgument('packages');
@@ -142,6 +138,7 @@ class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
             $parser = new VersionParser();
 
             $parsed = $parser->parseNameVersionPairs($packages);
+            $require = [];
 
             foreach ($parsed as $pkg) {
                 // Note: there might be multiple ones with the same name
@@ -149,14 +146,12 @@ class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
                 $require[$pkg['name']] = $pkg['version'] ?? 0;
             }
 
-            $options = [
-                'packages' => $require
-            ];
-
-            $this->packman->addPackages($options);
+            $options['packages'] = $require;
         }
 
-        // $this->packman->start($require);
+        // Packman::log($options, $event->getCommand());
+
+        $this->packman->start($options);
     }
 
     // public function initCommand($event)
