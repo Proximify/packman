@@ -48,7 +48,12 @@ class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
         // $installer = new Installer($io, $composer);
         // $composer->getInstallationManager()->addInstaller($installer);
 
-        ($this->packman = new Packman($composer, $io))->start();
+        $options = [
+            'skipBuild' => true,
+            'webServer' => false
+        ];
+
+        ($this->packman = new Packman($composer, $io))->start($options);
     }
 
     /**
@@ -144,10 +149,14 @@ class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
                 $require[$pkg['name']] = $pkg['version'] ?? 0;
             }
 
-            $this->packman->addPackages($require);
+            $options = [
+                'packages' => $require
+            ];
+
+            $this->packman->addPackages($options);
         }
 
-        $this->packman->start($require);
+        // $this->packman->start($require);
     }
 
     // public function initCommand($event)

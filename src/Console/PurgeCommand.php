@@ -18,11 +18,11 @@ class PurgeCommand extends BaseCommand
 {
     protected function configure()
     {
-        $this->setName('packman:purge');
+        $this->setName('packman-purge');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('purge', $input, $output);
+        (new Packman())->runCommand('purge');
     }
 }

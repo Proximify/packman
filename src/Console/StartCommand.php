@@ -23,6 +23,6 @@ class StartCommand extends BaseCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('start', $input, $output);
+        (new Packman())->runCommand('start');
     }
 }

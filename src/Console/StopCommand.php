@@ -18,11 +18,11 @@ class StopCommand extends BaseCommand
 {
     protected function configure()
     {
-        $this->setName('packman:stop');
+        $this->setName('packman-stop');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('stop', $input, $output);
+        (new Packman())->runCommand('stop');
     }
 }

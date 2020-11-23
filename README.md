@@ -4,11 +4,15 @@
 
 # Packman
 
-This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project. A local web server is started and stopped automatically when needed by a composer task (usually `http://localhost:8081`). Packman assumes that all private packages have the same vendor name and that their source is hosted at a common location (e.g. `https://github.com/CompanyName/...`).
+This Composer plugin creates a package manager and serves private packages to Composer from a local web server. By default, it creates one package manager per project within a `packman` folder. A local web server is started and stopped automatically when needed by a composer task (usually `http://localhost:8081`). Packman assumes that all private packages have the same vendor name and that their source is hosted at a common location (e.g. `https://github.com/CompanyName/...`).
 
 ## Terminology
 
-In Composer terminology, a **repository** is a set of packages, and a **package** is simply a commit in a repository. A commit can be identified in relative terms by its version tag and its brach name. A **private repository** is a set of **private packages**. Packages can be required by other packages in relative terms based on their [semantic version](#semantic-versioning). That is, instead of specifying a commit hash, one can request the newest package that matches a version pattern, such as `1.1.*`.
+In Composer terminology, a **repository** is a set of packages, and a **package** is simply a commit in a repository. A commit can be identified in relative terms by its brach name and its version tag (it it has one). For example, in plain English, version constraints read as "most recent commit in the develop branch" or "package with version 1.0 or higher".
+
+A **private repository** is a set of **private packages**. Packages can be required by other packages in relative terms based on their [semantic version](#semantic-versioning). That is, instead of specifying a commit hash, one can request the newest package that matches a version pattern, such as `1.1.*`.
+
+After running `composer install` or `composer update`, the `require` pattern of each package is **locked** to the specific **commit hash** that **satisfies** the requirement.
 
 ## How Packman works
 

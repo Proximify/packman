@@ -18,11 +18,11 @@ class ResetCommand extends BaseCommand
 {
     protected function configure()
     {
-        $this->setName('packman:reset');
+        $this->setName('packman-reset');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('reset', $input, $output);
+        (new Packman())->runCommand('reset');
     }
 }

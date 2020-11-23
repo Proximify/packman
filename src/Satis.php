@@ -322,7 +322,7 @@ class Satis
         $result = $this->runSatisCommand('build');
 
         $success = ($result['code'] == 0);
-        $level = $success ? Packman::VERBOSE : Packman::NORMAL;
+        $level = $success ? Packman::NORMAL : Packman::VERBOSE;
 
         if ($msg = trim($result['out'])) {
             Packman::writeMsg($msg, $level);

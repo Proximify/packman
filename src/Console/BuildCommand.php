@@ -27,11 +27,11 @@ class BuildCommand extends BaseCommand
 
     protected function configure()
     {
-        $this->setName('packman:build');
+        $this->setName('packman-build');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        (new Packman())->runCommand('build', $input, $output);
+        (new Packman())->runCommand('build');
     }
 }

@@ -9,8 +9,6 @@
 namespace Proximify\Packman;
 
 use Proximify\Packman\Satis;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Composer\Composer;
 use Composer\IO\IOInterface;
 
@@ -33,6 +31,7 @@ class Packman
     const REMOTE_DIR_KEY = 'remoteUrl';
     const LOCAL_URL_KEY = 'localUrl';
     const SYMLINK_DIR_KEY = 'symlinkDir';
+    const SYMLINKS_KEY = 'symlinks';
 
     /**
      * @var int Counter of Packman current instances. Used to remove
@@ -55,7 +54,6 @@ class Packman
     public function __construct(?Composer $composer = null, ?IOInterface $io = null)
     {
         self::$instanceCount++;
-
         if ($composer) {
             self::$composer = $composer;
         }
@@ -76,65 +74,8 @@ class Packman
         }
     }
 
-    public function start(array $packages = [], array $options = [])
+    public function runCommand(string $name, array $options = [])
     {
-        $satis = $this->getSatis();
-
-        if (!$satis) {
-            return;
-        }
-
-        $reset = $options['reset'] ?? false;
-
-        // Update satis.json based on the current requirements
-        // in composer.json given to the Satis constructor plus
-        // the additional packages received in the arguments.
-        $satis->updateSatisFile($packages, $reset);
-
-        $status = $satis->getStatus();
-
-        $needsBuild = $status['needsBuild'] ?? false;
-        $needsReset = $status['needsReset'] ?? false;
-        $webServer = $options['webServer'] ?? true;
-
-        // $this->log($status, 'Satis status');
-
-        if (!$needsBuild) {
-            return;
-        }
-
-        // Init the root dir and add it it to .gitignore
-        // $this->makeRootDir();
-
-        if ($webServer) {
-            // If no reset is needed, the server can be started right away
-            $needsReset ? $this->stopServer() : $this->startServer();
-        }
-
-        $satis->buildSatis();
-
-        // If a reset was done, the server is started after it
-        if ($needsReset && $webServer) {
-            $this->startServer();
-        }
-
-        // $this->addSymlinkRepositories();
-        // $this->removeUnusedRepositories();
-        $this->addLocalServerToComposer();
-
-        // $repos = $this->getRepositories();
-
-        // foreach ()
-        // $this->log(, 'Repositories');
-    }
-
-    public function runCommand(
-        string $name,
-        InputInterface $input,
-        OutputInterface $output
-    ) {
-        $this->output = $output;
-
         switch ($name) {
             case 'list':
                 return $this->listSatisRepos();
@@ -145,24 +86,74 @@ class Packman
             case 'reset':
                 return $this->start(['reset' => true]);
             case 'start':
-                return $this->start();
+                $options = ['skipBuild' => true, 'webServer' => false];
+                return $this->start($options);
             case 'stop':
                 return $this->stopServer();
+        }
+    }
+
+    public function start(array $options = [])
+    {
+        $satis = $this->getSatis();
+
+        if (!$satis) {
+            return;
+        }
+
+        $reset = $options['reset'] ?? false;
+        $packages = $options['packages'] ?? [];
+
+        // Update satis.json based on the current requirements
+        // in composer.json given to the Satis constructor plus
+        // the additional packages received in the arguments.
+        $satis->updateSatisFile($packages, $reset);
+
+        $status = $satis->getStatus();
+
+        $needsBuild = $status['needsBuild'] ?? false;
+        $needsReset = $status['needsReset'] ?? false;
+
+        $webServer = $options['webServer'] ?? true;
+        $skipBuild = $options['skipBuild'] ?? false;
+
+        if (!$needsBuild) {
+            return;
+        }
+
+        if ($webServer) {
+            // If no reset is needed, the server can be started right away
+            $needsReset ? $this->stopServer() : $this->startServer();
+        }
+
+        if (!$skipBuild) {
+            $satis->buildSatis();
+        }
+
+        // If a reset was done, the server is started after it
+        if ($needsReset && $webServer) {
+            $this->startServer();
+        }
+
+        $this->addSymlinkRepositories();
+        // $this->removeUnusedRepositories();
+        $this->addLocalServerToComposer();
+
+        // $this->log(array_keys($this->getRepositories()), 'Active repos');
+    }
+
+    public function addPackages(array $options)
+    {
+        // The start() method was supposedly already called, so only
+        // call it again if there are new packages
+        if ($packages = $options['packages'] ?? false) {
+            $this->start($packages);
         }
     }
 
     public function listSatisRepos()
     {
         // print_r($this->getDeclaredRepos());
-    }
-
-    public function addPackages(array $packages)
-    {
-        // The start() method was supposedly already called, so only
-        // call it again if there are new packages
-        if ($packages) {
-            $this->start($packages);
-        }
     }
 
     public function stopServer()
@@ -240,6 +231,37 @@ class Packman
         self::writeMsg($msg, self::VERBOSE);
     }
 
+    public static function prefix(string $msg, $isError = false)
+    {
+        $icon = $isError ? self::RED_CIRCLE : self::YELLOW_CIRCLE;
+
+        return $icon . ' Packman: ' . $msg;
+    }
+
+    public static function getRealPath(string $path): ?string
+    {
+        // Convert the ~ prefix to $home, which is what the shell does
+        if ($path && $path[0] == '~') {
+            if ($home = getenv('HOME')) {
+                $path = $home . '/' . substr($path, 1);
+            }
+        }
+
+        return realpath($path);
+    }
+
+    /**
+     * Remove the vendor name from the given repository names.
+     */
+    public static function removeVendor(string $vendor, string $name): ?string
+    {
+        $vendor .= '/';
+        $len = strlen($vendor);
+
+        return (strncmp($name, $vendor, $len) === 0) ?
+            substr($name, $len) : null;
+    }
+
     /**
      * Get contents of remote URL.
      *
@@ -303,43 +325,44 @@ class Packman
     {
         // The set of private repositories is the one that
         // is kept in the satis.json file
-        $satis = $this->satisConfig['require'] ?? false;
+        // $satis = $this->satisConfig['require'] ?? false;
 
-        if (!$satis) {
-            return;
-        }
+        // if (!$satis) {
+        //     return;
+        // }
 
-        $symlinkDir = $this->getConfigValue(self::SYMLINK_DIR_KEY);
-        $home = getenv('HOME');
+        $symlinkDir = $this->getSymlinkDir();
+        $symlinks = $this->getConfigValue(self::SYMLINKS_KEY);
 
-        if ($symlinkDir && $symlinkDir[0] == '~' && $home) {
-            $symlinkDir = $home . '/' . substr($symlinkDir, 1);
-        }
+        // $this->log($symlinkDir, 'Symlink directory');
 
-        $symlinkDir = realpath($symlinkDir);
-        $this->log($symlinkDir, 'sym');
-
-        if (!$symlinkDir || !is_dir($symlinkDir)) {
+        if (!$symlinks || !$symlinkDir || !is_dir($symlinkDir)) {
             return;
         }
 
         $dir = new \DirectoryIterator($symlinkDir);
-        $own = [];
+        $vendor = $this->getVendorName();
 
         foreach ($dir as $fileinfo) {
-            if (!$fileinfo->isDot() && $fileinfo->isDir()) {
-                $dir = $fileinfo->getPathname();
-                $config = self::readJsonFile("$dir/composer.json");
+            if ($fileinfo->isDot() || !$fileinfo->isDir()) {
+                continue;
+            }
 
-                if (($name = $config['name'] ?? false) && isset($satis[$name])) {
-                    $own[] = $fileinfo->getFilename();
-                    $this->addSymlinkRepo($fileinfo->getFilename());
-                }
+            $dir = $fileinfo->getPathname();
+            $config = self::readJsonFile("$dir/composer.json");
+            $name = $config['name'] ?? false;
+
+            if (!$name || !($name = self::removeVendor($vendor, $name))) {
+                continue;
+            }
+
+            // $this->writeMsg($name);
+            // isset($satis[$name])
+
+            if (in_array($name, $symlinks)) {
+                $this->addSymlinkRepo($fileinfo->getPathname());
             }
         }
-
-        $this->log($own, 'own');
-        // $this->log($satis, 'satis');
     }
 
     private function removeUnusedRepositories()
@@ -381,13 +404,35 @@ class Packman
 
         $repo = $rm->createRepository($type, $config);
 
+        // $this->log($repo->getRepoName(), 'Adding Symlink repo...');
+
         $rm->addRepository($repo);
     }
 
+    /**
+     * Get the current repositories in the composer object. 
+     * Note that duplicates are avoided by qualifying the repository names
+     * with their type and URL. For example,
+     * 
+     * - "composer repo (https://repo.packagist.org)"
+     * - "path repo (/.../vendor/repo-name)"
+     * - "composer repo (http://localhost:8081)"
+     * 
+     * The 'composer' type has class: Composer\Repository\ComposerRepository
+     * The 'path' type has class: Composer\Repository\PathRepository
+     * 
+     * @return array
+     */
     private function getRepositories(): array
     {
         $rm = self::$composer->getRepositoryManager();
-        return $rm->getRepositories();
+        $repos = [];
+
+        foreach ($rm->getRepositories() as $repo) {
+            $repos[$repo->getRepoName()] = $repo;
+        }
+
+        return $repos;
     }
 
     private static function readJsonFile(string $filename)
@@ -409,35 +454,6 @@ class Packman
 
         return $response['packageNames'] ?? [];
     }
-
-    // private function makeRootDir()
-    // {
-    //     $dir = $this->getPackmanDir();
-
-    //     if (!is_dir($dir)) {
-    //         mkdir($dir, 0755, true);
-    //         $this->addToGitIgnore($dir);
-    //     }
-    // }
-
-    // private function addToGitIgnore(string $dir): void
-    // {
-    //     $filename = '.gitignore';
-
-    //     if (file_exists($filename)) {
-    //         // Read entire file into an array
-    //         foreach (file($filename) as $line) {
-    //             if (trim($line) == $dir) {
-    //                 return;
-    //             }
-    //         }
-    //     }
-
-    //     // Write the contents to the file using the FILE_APPEND flag to append the
-    //     // content to the end of the file and the LOCK_EX flag to prevent anyone
-    //     // else writing to the file at the same time
-    //     file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
-    // }
 
     private function setComposerConfig(string $key, $value): void
     {
@@ -538,10 +554,10 @@ class Packman
         return $this->getPackmanDir() . '/packman.json';
     }
 
-    public static function prefix(string $msg, $isError = false)
+    private function getSymlinkDir(): ?string
     {
-        $icon = $isError ? self::RED_CIRCLE : self::YELLOW_CIRCLE;
+        $path = $this->getConfigValue(self::SYMLINK_DIR_KEY);
 
-        return $icon . ' Packman: ' . $msg;
+        return $path ? self::getRealPath($path) : null;
     }
 }
