@@ -29,7 +29,7 @@ class Packman
     const VERBOSE = IOInterface::VERBOSE;
 
     const PACKMAN_DIR_KEY = 'packmanDir';
-    const NAMESPACE_KEY = 'namespace';
+    const VENDOR_KEY = 'vendor';
     const REMOTE_DIR_KEY = 'remoteUrl';
     const LOCAL_URL_KEY = 'localUrl';
     const SYMLINK_DIR_KEY = 'symlinkDir';
@@ -48,6 +48,9 @@ class Packman
 
     /** @var mixed The IO object of composer provided at load time. */
     private static $io;
+
+    /** @var Satis The satis object used by Packman. Constructed when needed. */
+    private $satis;
 
     public function __construct(?Composer $composer = null, ?IOInterface $io = null)
     {
@@ -75,36 +78,48 @@ class Packman
 
     public function start(array $packages = [], array $options = [])
     {
-        $satis = $this->newSatis();
+        $satis = $this->getSatis();
+
+        if (!$satis) {
+            return;
+        }
 
         $reset = $options['reset'] ?? false;
 
+        // Update satis.json based on the current requirements
+        // in composer.json given to the Satis constructor plus
+        // the additional packages received in the arguments.
         $satis->updateSatisFile($packages, $reset);
 
         $status = $satis->getStatus();
 
-        if (!($status['needsBuild'] ?? false)) {
+        $needsBuild = $status['needsBuild'] ?? false;
+        $needsReset = $status['needsReset'] ?? false;
+        $webServer = $options['webServer'] ?? true;
+
+        // $this->log($status, 'Satis status');
+
+        if (!$needsBuild) {
             return;
         }
 
         // Init the root dir and add it it to .gitignore
-        $this->makeRootDir();
+        // $this->makeRootDir();
 
-        $needsReset = $status['needsReset'] ?? false;
-        $noWebServer = $options['noWebServer'] ?? false;
-
-        // If no reset is needed, the server can be started right away
-        $needsReset ? $this->stopServer() : $this->startServer();
+        if ($webServer) {
+            // If no reset is needed, the server can be started right away
+            $needsReset ? $this->stopServer() : $this->startServer();
+        }
 
         $satis->buildSatis();
 
         // If a reset was done, the server is started after it
-        if ($needsReset) {
+        if ($needsReset && $webServer) {
             $this->startServer();
         }
 
-        $this->addSymlinkRepositories();
-        $this->removeUnusedRepositories();
+        // $this->addSymlinkRepositories();
+        // $this->removeUnusedRepositories();
         $this->addLocalServerToComposer();
 
         // $repos = $this->getRepositories();
@@ -124,11 +139,15 @@ class Packman
             case 'list':
                 return $this->listSatisRepos();
             case 'build':
-                return $this->start(['noWebServer' => true]);
-                // case 'purge':
-                //     return $this->newSatis()->runSatisCommand('purge');
+                return $this->start(['webServer' => false]);
+            case 'purge':
+                return $this->getSatis()->purge();
             case 'reset':
                 return $this->start(['reset' => true]);
+            case 'start':
+                return $this->start();
+            case 'stop':
+                return $this->stopServer();
         }
     }
 
@@ -166,7 +185,7 @@ class Packman
             return;
         }
 
-        $target = $this->getSatisDir();
+        $target = $this->getSatis()->getOutputDir();
 
         if (!is_dir($target)) {
             return;
@@ -190,7 +209,7 @@ class Packman
         self::$serverHandle = proc_open($cmd, [], $pipes);
     }
 
-    protected function writeMsg(string $msg, $level = self::NORMAL)
+    public static function writeMsg(string $msg, $level = self::NORMAL)
     {
         if (!is_string($msg)) {
             $msg = print_r($msg, true);
@@ -201,14 +220,14 @@ class Packman
         self::$io ? self::$io->write($msg, true, $level) : print("$msg\n");
     }
 
-    protected function writeError(string $msg, $level = self::NORMAL)
+    public static function writeError(string $msg, $level = self::NORMAL)
     {
         $msg = self::prefix($msg, true);
 
         self::$io ? self::$io->writeError($msg, $level) : print("$msg\n");
     }
 
-    protected function log($msg, ?string $lbl = null)
+    public static function log($msg, ?string $lbl = null)
     {
         if (!is_string($msg)) {
             $msg = print_r($msg, true);
@@ -218,7 +237,7 @@ class Packman
             $msg = "$lbl:\n" . $msg;
         }
 
-        $this->writeMsg($msg, self::VERBOSE);
+        self::writeMsg($msg, self::VERBOSE);
     }
 
     /**
@@ -238,9 +257,17 @@ class Packman
         return $result;
     }
 
-    private function newSatis()
+    private function getSatis(): ?Satis
     {
+        if ($this->satis) {
+            return $this->satis;
+        }
+
         $vendor = $this->getVendorName();
+
+        if (!$vendor) {
+            return null;
+        }
 
         $options = [
             'binPath' => $this->getSatisBinaryPath(),
@@ -252,7 +279,7 @@ class Packman
             'require' => $this->getRequiredPackages(),
         ];
 
-        return new Satis($options);
+        return $this->satis = new Satis($options);
     }
 
     private function getSatisBinaryPath(): ?string
@@ -319,7 +346,7 @@ class Packman
     {
         // Read the packages.json pf satis to see what is
         // actually downloaded
-        $repos = $this->getSatisRepoDependencies();
+        $repos = $this->getSatis()->getDependencies();
 
         $this->log($repos, 'active');
     }
@@ -330,7 +357,7 @@ class Packman
         $this->setComposerConfig('secure-http', false);
 
         $config = [
-            'url' => $this->satisConfig['homepage']
+            'url' => $this->getLocalUrl()
         ];
 
         $this->addRepository('composer', $config);
@@ -383,34 +410,34 @@ class Packman
         return $response['packageNames'] ?? [];
     }
 
-    private function makeRootDir()
-    {
-        $dir = $this->getPackmanDir();
+    // private function makeRootDir()
+    // {
+    //     $dir = $this->getPackmanDir();
 
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-            $this->addToGitIgnore($dir);
-        }
-    }
+    //     if (!is_dir($dir)) {
+    //         mkdir($dir, 0755, true);
+    //         $this->addToGitIgnore($dir);
+    //     }
+    // }
 
-    private function addToGitIgnore(string $dir): void
-    {
-        $filename = '.gitignore';
+    // private function addToGitIgnore(string $dir): void
+    // {
+    //     $filename = '.gitignore';
 
-        if (file_exists($filename)) {
-            // Read entire file into an array
-            foreach (file($filename) as $line) {
-                if (trim($line) == $dir) {
-                    return;
-                }
-            }
-        }
+    //     if (file_exists($filename)) {
+    //         // Read entire file into an array
+    //         foreach (file($filename) as $line) {
+    //             if (trim($line) == $dir) {
+    //                 return;
+    //             }
+    //         }
+    //     }
 
-        // Write the contents to the file using the FILE_APPEND flag to append the
-        // content to the end of the file and the LOCK_EX flag to prevent anyone
-        // else writing to the file at the same time
-        file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
-    }
+    //     // Write the contents to the file using the FILE_APPEND flag to append the
+    //     // content to the end of the file and the LOCK_EX flag to prevent anyone
+    //     // else writing to the file at the same time
+    //     file_put_contents($filename, "\n$dir\n", FILE_APPEND | LOCK_EX);
+    // }
 
     private function setComposerConfig(string $key, $value): void
     {
@@ -421,7 +448,7 @@ class Packman
         self::$composer->getConfig()->merge($config);
     }
 
-    private static function getGlobalComposer()
+    private static function getGlobalComposer(): ?Composer
     {
         return self::$composer->getPluginManager()->getGlobalComposer();
     }
@@ -432,8 +459,12 @@ class Packman
         $merged = ($key == self::PACKMAN_DIR_KEY) ? [] :
             $this->readJsonFile($this->getPackmanFilename());
 
+        $globalComposer = self::getGlobalComposer();
+
         $local = self::$composer->getPackage()->getExtra();
-        $global = self::getGlobalComposer()->getPackage()->getExtra();
+
+        $global = $globalComposer ?
+            $globalComposer->getPackage()->getExtra() : [];
 
         $merged += ($local['packman'] ?? []) + ($global['packman'] ?? []);
 
@@ -449,10 +480,10 @@ class Packman
 
     private function getVendorName(): ?string
     {
-        $namespace = $this->getConfigValue(self::NAMESPACE_KEY);
+        $vendor = $this->getConfigValue(self::VENDOR_KEY);
 
-        if ($namespace) {
-            return $namespace;
+        if ($vendor) {
+            return $vendor;
         }
 
         $name = self::$composer->getPackage()->getName();
@@ -460,7 +491,7 @@ class Packman
         $pos = strpos($name, '/');
 
         if (!$name || !$pos) {
-            $this->writeError("Cannot find namespace in composer.json");
+            $this->writeError("Cannot find vendor name in composer.json");
             return null;
         }
 
@@ -507,43 +538,10 @@ class Packman
         return $this->getPackmanDir() . '/packman.json';
     }
 
-    private static function trimAll($str, $what = null, $with = ' ')
-    {
-        if ($what === null) {
-            //  Character      Decimal      Use
-            //  "\0"            0           Null Character
-            //  "\t"            9           Tab
-            //  "\n"           10           New line
-            //  "\x0B"         11           Vertical Tab
-            //  "\r"           13           New Line in Mac
-            //  " "            32           Space
-
-            $what   = "\\x00-\\x20";    //all white-spaces and control chars
-        }
-
-        return trim(trim(preg_replace("/[" . $what . "]+/", $with, $str), $what));
-    }
-
-    private static function prefix(string $msg, $isError = false)
+    public static function prefix(string $msg, $isError = false)
     {
         $icon = $isError ? self::RED_CIRCLE : self::YELLOW_CIRCLE;
 
         return $icon . ' Packman: ' . $msg;
-    }
-
-    private static function cleanSatisError(string $msg, $level): string
-    {
-        if ($level == self::VERBOSE) {
-            return $msg;
-        }
-
-        // Remove the <warning></warning> tag
-        $msg = strip_tags($msg);
-
-        $annoying = 'The "proximify/packman" plugin was skipped because it requires a Plugin API version ("^2.0") that does not match your Composer installation ("1.1.0"). You may need to run composer update with the "--no-plugins" option.';
-
-        $msg = str_replace($annoying, '', $msg);
-
-        return self::trimAll($msg);
     }
 }

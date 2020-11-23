@@ -11,7 +11,7 @@
     ],
     "autoload": {
         "psr-4": {
-            "Proximify\\ComposerPlugin\\": "src"
+            "Proximify\\Packman\\": "src"
         }
     },
     "minimum-stability": "dev",
@@ -21,7 +21,7 @@
         "composer/satis": "dev-master"
     },
     "extra": {
-        "class": "Proximify\\ComposerPlugin\\Loader",
+        "class": "Proximify\\Packman\\PluginLoader",
         "plugin-modifies-downloads": true
     }
 }

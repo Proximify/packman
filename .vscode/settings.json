@@ -11,6 +11,8 @@
         "Proximify",
         "referentiable",
         "satis",
-        "symlink"
+        "symlink",
+        "symlinked",
+        "symlinks"
     ]
 }

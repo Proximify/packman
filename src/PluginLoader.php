@@ -25,7 +25,7 @@ use Composer\Package\Version\VersionParser;
  * @see function addInstaller at src/Composer/Installer/InstallationManager.php
  * @see InstallerInterface src/Composer/Installer/InstallerInterface.php
  */
-class Loader implements PluginInterface, Capable, EventSubscriberInterface
+class PluginLoader implements PluginInterface, Capable, EventSubscriberInterface
 {
     const PROMPT = Packman::YELLOW_CIRCLE . ' ';
 
