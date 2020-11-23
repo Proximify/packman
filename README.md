@@ -8,7 +8,7 @@ This Composer plugin creates a package manager and serves private packages to Co
 
 ## Terminology
 
-In Composer terminology, a **repository** is a set of packages, and a **package** in a commit of a repository. The commit can be identified in relative terms by version tag and/or a brach name. A **private repository** is a set of **private packages**. Packages can be required in relative terms based on their [semantic version](#semantic-versioning).
+In Composer terminology, a **repository** is a set of packages, and a **package** is simply a commit in a repository. A commit can be identified in relative terms by its version tag and its brach name. A **private repository** is a set of **private packages**. Packages can be required by other packages in relative terms based on their [semantic version](#semantic-versioning). That is, instead of specifying a commit hash, one can request the newest package that matches a version pattern, such as `1.1.*`.
 
 ## How Packman works
 
@@ -172,9 +172,11 @@ The paremeters are set in the global and/or local composer.json files under the 
 
 ## Semantic versioning
 
-By using the git tag system, one can attach a semantic version ([semver](https://semver.org/)) to a commit in order to make it referentiable in relative terms. For example, package "vendor/repo:1.2.0-beta" is the commit in the master brach that has the tag '1.2.0-beta'.
+By tagging a commit, one can attach a semantic version ([semver](https://semver.org/)) to a commit in order to make it referentiable in relative terms. For example, package "vendor/repo:1.2.0-beta" is the commit in the master brach that has the tag '1.2.0-beta'.
 
-The version labels attached to the numbers, "-label", are an additional way to communicate information about the state and intent of the code at a particular commit (`dev`, `alpha`, `beta`, `beta1`, `rc`, `rc1`). A no-labelled number is a higher version than the same number with a label. An untagged commit is a package with a version number that's higher than that of the last commit, but lower than a "-dev" version with the same number.
+Version suffix labels of the form "-label" provide an additional way to communicate information about the state and intent of a particular commit. The meaning of lables is rank order as: `dev`, `alpha`, `beta`, `rc`, and they can have a numeric suffix too, such as `beta1` or `rc2`. A no-label version number, `n.n.n`, is a higher version than the same number with a label, `n.n.n-label`, for any label.
+
+An untagged commit represents a package with an unknown version number that exists within a range of known version numbers. It's still possible to refer to an untagged commit. For example, one can request the last commit before a tagged commit.
 
 When asking for a "vendor/repo:dev-master" **package**, one is asking for the latest commit in the `master` branch of the "vendor/repo" repository with label `-dev` or higher. For example, a `-alpha` labelled version number would meet that condition.
 
