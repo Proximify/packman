@@ -165,12 +165,14 @@ The paremeters are set in the global and/or local composer.json files under the 
 
  <!-- for local ones and `composer global COMMAND` for those that edit the global composer settings (e.g. `packman:config`). -->
 
-| Parameter     | Description                                                                       |
-| ------------- | --------------------------------------------------------------------------------- |
-| packman:build | Perform an update of all registered packages.                                     |
-| packman:reset | Reset the entire package store.                                                   |
-| packman:start | Build private packages and start the local web server to server them to composer. |
-| packman:stop  | Stop the local web server that servers the packages to composer.                  |
+| Parameter      | Description                                                                       |
+| -------------- | --------------------------------------------------------------------------------- |
+| packman-build  | Perform an update of all registered packages.                                     |
+| packman-reset  | Reset the entire package store.                                                   |
+| packman-start  | Build private packages and start the local web server to server them to composer. |
+| packman-stop   | Stop the local web server that servers the packages to composer.                  |
+| packman-link   | Create symlinks to the given repository folders.                                  |
+| packman-unlink | Remove symlinks to the given repository folders.                                  |
 
 <!-- | packman:config | Save the values for Packman parameters. Use `composer global packman:config` to save to the global `.composer/composer.json`. |  | -->
 

@@ -90,7 +90,50 @@ class Packman
                 return $this->start($options);
             case 'stop':
                 return $this->stopServer();
+            case 'link':
+                return $this->addSymlinkRepos($options);
+            case 'unlink':
+                return $this->removeSymlinkRepos($options);
         }
+    }
+
+    public function addSymlinkRepos(array $options = [])
+    {
+        $this->log($options);
+
+        $folders = $options['folders'] ?? [];
+
+        $filename = $this->getPackmanFilename();
+
+        $data = $this->readJsonFile($filename);
+
+        $symlinks = $data['$symlinks'] ?? [];
+        $symlinks = array_merge($symlinks, $folders);
+
+        $data['$symlinks'] = array_values(array_unique($symlinks));
+
+        Satis::saveJsonFile($filename, $data);
+    }
+
+    public function removeSymlinkRepos(array $options = [])
+    {
+        $folders = $options['folders'] ?? [];
+
+        $filename = $this->getPackmanFilename();
+
+        $data = $this->readJsonFile($filename);
+
+        $final = [];
+
+        foreach ($data['$symlinks'] ?? [] as $name) {
+            if (!in_array($name, $folders)) {
+                $final[] = $name;
+            }
+        }
+
+        $data['$symlinks'] = $final;
+
+        Satis::saveJsonFile($filename, $data);
     }
 
     public function start(array $options = [])
@@ -401,17 +444,17 @@ class Packman
     }
 
     /**
-     * Get the current repositories in the composer object. 
+     * Get the current repositories in the composer object.
      * Note that duplicates are avoided by qualifying the repository names
      * with their type and URL. For example,
-     * 
+     *
      * - "composer repo (https://repo.packagist.org)"
      * - "path repo (/.../vendor/repo-name)"
      * - "composer repo (http://localhost:8081)"
-     * 
+     *
      * The 'composer' type has class: Composer\Repository\ComposerRepository
      * The 'path' type has class: Composer\Repository\PathRepository
-     * 
+     *
      * @return array
      */
     private function getRepositories(): array

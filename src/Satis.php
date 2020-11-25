@@ -398,12 +398,12 @@ class Satis
         return json_decode($json, true, 512, JSON_THROW_ON_ERROR) ?: [];
     }
 
-    private static function encode(array $data): string
+    public static function encode(array $data): string
     {
         return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 
-    private static function saveJsonFile(string $filename, array $data)
+    public static function saveJsonFile(string $filename, array $data)
     {
         file_put_contents($filename, self::encode($data));
     }

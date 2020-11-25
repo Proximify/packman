@@ -30,6 +30,8 @@ class CommandProvider implements CommandProviderCapability
             new PurgeCommand(),
             new ResetCommand(),
             new StopCommand(),
+            new LinkCommand(),
+            new UnlinkCommand(),
         ];
     }
 }
