@@ -1,0 +1,7 @@
+# .gitattributes
+tests             export-ignore
+dev               export-ignore
+docs              export-ignore
+.vscode           export-ignore
+.gitattributes    export-ignore
+.github           export-ignore
