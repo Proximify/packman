@@ -165,14 +165,14 @@ The paremeters are set in the global and/or local composer.json files under the 
 
  <!-- for local ones and `composer global COMMAND` for those that edit the global composer settings (e.g. `packman:config`). -->
 
-| Parameter      | Description                                                                       |
-| -------------- | --------------------------------------------------------------------------------- |
-| packman-build  | Perform an update of all registered packages.                                     |
-| packman-reset  | Reset the entire package store.                                                   |
-| packman-start  | Build private packages and start the local web server to server them to composer. |
-| packman-stop   | Stop the local web server that servers the packages to composer.                  |
-| packman-link   | Create symlinks to the given repository folders.                                  |
-| packman-unlink | Remove symlinks to the given repository folders.                                  |
+| Parameter      | Description                                                                                                                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| packman-build  | Perform an update of all registered packages.                                                                                                                                                                                                                                                                       |
+| packman-reset  | Reset the entire package store.                                                                                                                                                                                                                                                                                     |
+| packman-start  | Build private packages and start the local web server to server them to composer.                                                                                                                                                                                                                                   |
+| packman-stop   | Stop the local web server that servers the packages to composer.                                                                                                                                                                                                                                                    |
+| packman-link   | Adds the given folder names to the `packman.json` under the symlinks key. Note that tt does not add packages but just local repo folders. Packages requirements have to be added with `composer require`. It only adds the instructions to symlink to repository folders where some required packages can be found. |
+| packman-unlink | Remove symlinks from the `packman.json` file.                                                                                                                                                                                                                                                                       |
 
 <!-- | packman:config | Save the values for Packman parameters. Use `composer global packman:config` to save to the global `.composer/composer.json`. |  | -->
 
