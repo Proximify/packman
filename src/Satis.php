@@ -106,7 +106,8 @@ class Satis
         // Init the internal satis config
         $this->satisConfig = [];
         $this->satisStatus = [
-            'needsReset' => $reset
+            'needsReset' => $reset,
+            'diff' => []
         ];
 
         $declared = $this->findNeededRepos($newPackages);
