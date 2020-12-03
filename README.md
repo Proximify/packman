@@ -20,11 +20,7 @@ Composer has a special syntax to declare constraints based on branch names. The 
 
 In contrast, for tag based constraints, Composer copies the needed files without cloning the repo. This behavior can be modified with the --prefer-source and --prefer-dist options.
 
-> Composer limits which tags are considered **valid** based on the value of "minimum-stability" in composer.json, which defaults to "stable". To work with development-level packages (including tags suffixed with -dev, -alpha, etc), set the minimum stability to `@dev`.
-
-**Version constraints** can be defined as ranges `1.0 - 2.0`, `>=1.0.0 <2.1`, wildcards `1.0.*`, and [more](https://getcomposer.org/doc/articles/versions.md#writing-version-constraints). The only symbol that is particularly unclear is `~`, which means "Next Significant Release". E.g. `~1.2` is equivalent to `>=1.2 <2.0.0`, while `~1.2.3` is equivalent to `>=1.2.3 <1.3.0`.
-
-*Stability flags* are version constraints in the form `"constraint@LEVEL"`, where `constraint` can be empty and `LEVEL` is the stability level. The flag tells Composer that a given package can be installed in a different stability than the `minimum-stability` setting. For example,
+Composer limits which tags are considered **valid** based on the value of "minimum-stability" in composer.json, which defaults to "stable". To work with development-level packages (including tags suffixed with -dev, -alpha, etc), set the minimum stability to `@dev`. Alternatively, **stability flags** are version constraints in the form `"constraint@LEVEL"`, where `constraint` can be empty and `LEVEL` is the stability level. The flag tells Composer that a given package can be installed in a different stability than the `minimum-stability` setting. For example,
 
 ```json
 {
@@ -34,6 +30,8 @@ In contrast, for tag based constraints, Composer copies the needed files without
     }
 }
 ```
+
+**Version constraints** can be defined as ranges `1.0 - 2.0`, `>=1.0.0 <2.1`, wildcards `1.0.*`, and [more](https://getcomposer.org/doc/articles/versions.md#writing-version-constraints). The only symbol that is particularly unclear is `~`, which means "Next Significant Release". E.g. `~1.2` is equivalent to `>=1.2 <2.0.0`, while `~1.2.3` is equivalent to `>=1.2.3 <1.3.0`.
 
 ## How Packman works
 
