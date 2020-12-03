@@ -82,9 +82,9 @@ When developing multiple interdependent components at the same time, it is bette
 $ composer require proximify/bibutils:dev-master
 ```
 
-requires the branch "master" (the `dev-` prefix means "branch name"). When requesting a package by branch name, Composer clones the repo within the appropriate place in the `vendor` folder. having a clone means that you can work directly in it and commit from that location. It is weird, but it does the job.
+requires the branch "master" (the `dev-` prefix means "branch name"). When requesting a package by branch name, Composer clones the repo within the appropriate place in the `vendor` folder. Having a cloned repo instead just files means that you can make changes to it and then commit from its location in the vendor folder. It is weird, but it does the job.
 
-An alternative to that approach is to use [symlink repositories](https://getcomposer.org/doc/05-repositories.md#path). Similarly to the cloned repo approach, the dependant packages won't need to be updated via composer every time they are changed locally by you. You can modify your local copy of the repo and the change is "applied" to the copy of the package within the vendor folder of another project.
+An alternative to that approach is to use [symlink repositories](https://getcomposer.org/doc/05-repositories.md#path). Similarly to the cloned repo approach, the dependant packages won't need to be updated via composer every time they are locally changed by you. You can modify your local copy of the repo and the change is "applied" to the copy of the package within the vendor folder of another project.
 
 Conceptually, the symlink approach and the cloned repo approach are identical. The only difference is that the cloned repo approach keeps an independent clone within the vendor folder, so if you also have the repo somewhere else, you  have to remember to pull the latest changes in the clone that was not modified directly. With symlinks, you avoid that step.
 
@@ -114,14 +114,13 @@ If you prefer defining your symlink repositories explicitly, it's a good idea to
 // Example global configuration of a symlink repository
 // ~/.composer/composer.json
 {
-    "minimum-stability": "dev",
     "require": {
-        "my-org/my-repo": "*"
+        "my-org/my-repo": "@dev"
     },
     "repositories": [
         {
             "type": "path",
-            "url": "../",
+            "url": "../my-repo",
             "options": {
                 "symlink": true
             }
@@ -130,7 +129,7 @@ If you prefer defining your symlink repositories explicitly, it's a good idea to
 }
 ```
 
-The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything else stays as shown.
+The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything else stays as shown. **Make sure that the `composer.json` at "../my-repo" sets "name" to "my-org/my-repo".**
 
 > Use a relative path for the "url" that works for all the members of your dev team. You can either start from your home directory with `~/` or you can make it relative to the root project with `../`. The `~/` is convenient for packages installed globally. The `../` allows for more freedom as long as the package is not installed globally or that the relative path also works from the global `.composer` folder.
 
