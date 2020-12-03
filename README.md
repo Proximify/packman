@@ -8,11 +8,32 @@ This Composer plugin creates a package manager and serves private packages to Co
 
 ## Terminology
 
-In Composer terminology, a **repository** is a set of packages, and a **package** is simply a commit in a repository. A commit can be identified in relative terms by its brach name and its version tag (it it has one). For example, in plain English, version constraints read as "most recent commit in the develop branch" or "package with version 1.0 or higher".
+In Composer terminology, a **repository** is a set of packages, and a **package** is simply a commit in a repository. A commit can be identified in relative terms by its tag (it it has one), and optionally, by brach name. The `composer.lock` identifies a package by its commit hash whereas the `composer.json` declares [version constraint](https://getcomposer.org/doc/articles/versions.md#versions-and-constraints) for all required packages. For example, in plain English, version constraints read as "most recent commit in the develop branch" or "package with version 1.0 or higher".
 
 A **private repository** is a set of **private packages**. Packages can be required by other packages in relative terms based on their [semantic version](#semantic-versioning). That is, instead of specifying a commit hash, one can request the newest package that matches a version pattern, such as `1.1.*`.
 
-After running composer `install`, `update` or `require`, the resulting `require` pattern of each package is **locked** to the specific **commit hash** that **satisfies** the requirement.
+After running composer `install`, `update` or `require`, the resulting `require` pattern of each package is **locked** to the specific **commit hash** that **satisfies** the required [version constraint](https://getcomposer.org/doc/articles/versions.md#versions-and-constraints).
+
+Composer has a special syntax to declare constraints based on branch names. The `dev-NAME` prefix tells composer that you want the branch named `NAME`. In that case, Composer assumes that you want a clone of the repo in your vendor folder instead of just the files in the repo. The main difference is that you can go into the repo within the vendor folder, make changes and commit directly from there. That is convenient when developing interdependent modules. You can modify the dependant and **skip** the `composer update DEPENDANT` step since you already have the latest version (in fact, you had it before its remote repo).
+
+> "If you wanted to check out the my-feature branch, you would specify dev-my-feature as the version constraint in your require clause. This would result in Composer cloning the my-library repository into my vendor directory and checking out the my-feature branch."
+
+In contrast, for tag based constraints, Composer copies the needed files without cloning the repo. This behavior can be modified with the --prefer-source and --prefer-dist options.
+
+> Composer limits which tags are considered **valid** based on the value of "minimum-stability" in composer.json, which defaults to "stable". To work with development-level packages (including tags suffixed with -dev, -alpha, etc), set the minimum stability to `@dev`.
+
+**Version constraints** can be defined as ranges `1.0 - 2.0`, `>=1.0.0 <2.1`, wildcards `1.0.*`, and [more](https://getcomposer.org/doc/articles/versions.md#writing-version-constraints). The only symbol that is particularly unclear is `~`, which means "Next Significant Release". E.g. `~1.2` is equivalent to `>=1.2 <2.0.0`, while `~1.2.3` is equivalent to `>=1.2.3 <1.3.0`.
+
+*Stability flags* are version constraints in the form `"constraint@LEVEL"`, where `constraint` can be empty and `LEVEL` is the stability level. The flag tells Composer that a given package can be installed in a different stability than the `minimum-stability` setting. For example,
+
+```json
+{
+    "require": {
+        "monolog/monolog": "1.0.*@beta",
+        "acme/foo": "@dev"
+    }
+}
+```
 
 ## How Packman works
 
@@ -55,12 +76,21 @@ $ composer require proximify/packman --dev
 
 The method works well on new projects because Packman can be installed before the private packages. However, when performing a `composer install` on an existing project with private packages, Packman won't yet be available to plugin into Composer and manage them. A possible, clunky solution for such cases is to remove the private dependencies from the project, install Packman, and then put them back. Since that's not super fun, we recommend installing Packman globally.
 
-## Using Symlink repositories
+## Using Cloned and Symlink repositories
 
-When developing multiple interdependent components at the same time, it is better to use [symlink repositories](https://getcomposer.org/doc/05-repositories.md#path) than private ones fetched with Packman. The reason for that is that the packages won't need to be updated via composer every time they change. You just modify a project and the change is "applied" to the copy of the package within the vendor folder of another project.
+When developing multiple interdependent components at the same time, it is better to work with the dependant **repositories** directly instead of using copies of their package files fetched by satisfying version constraints. There are two mains ways to do that. One is to require a package with a branch constraint instead of a tag constraint. For example,
 
-Packman can add symlink repositories to composer automatically when a Composer command is run. To enable that feature, the `symlinkDir` option has to be set to an existing directory. When `symlinkDir` is defined,
-any repository name listed under `symlinks` will be designated as a path-type repository and symlinked, even if publicly available from Packagist.
+```bash
+$ composer require proximify/bibutils:dev-master
+```
+
+requires the branch "master" (the `dev-` prefix means "branch name"). When requesting a package by branch name, Composer clones the repo within the appropriate place in the `vendor` folder. having a clone means that you can work directly in it and commit from that location. It is weird, but it does the job.
+
+An alternative to that approach is to use [symlink repositories](https://getcomposer.org/doc/05-repositories.md#path). Similarly to the cloned repo approach, the dependant packages won't need to be updated via composer every time they are changed locally by you. You can modify your local copy of the repo and the change is "applied" to the copy of the package within the vendor folder of another project.
+
+Conceptually, the symlink approach and the cloned repo approach are identical. The only difference is that the cloned repo approach keeps an independent clone within the vendor folder, so if you also have the repo somewhere else, you  have to remember to pull the latest changes in the clone that was not modified directly. With symlinks, you avoid that step.
+
+Packman can add symlink repositories to composer automatically when a Composer command is run. To enable that feature, the `symlinkDir` option has to be set to an existing directory. When `symlinkDir` is defined, any repository name listed under `symlinks` will be designated as a path-type repository and symlinked, even if publicly available from Packagist.
 
 Packman adds the **symlink repositories** to the active composer object automatically so there is no need to manually add them to the `repositories` section of a `composer.json`.
 
@@ -69,14 +99,14 @@ Packman adds the **symlink repositories** to the active composer object automati
 {
     "extra": {
         "packman": {
-            "symlinkDir": "~/root-of-all-repositories",
+            "symlinkDir": "../",
             "symlinks": ["repo-name1", "repo-name2"]
         }
     }
 }
 ```
 
-**Note:** If the `symlinkDir` value is set, the committed `composer.json`, it should be given as a relative path (either `~/` or `../`). By doing that, other members of your team will be able to have a similar configuration for them. If you don't expect other team members to also use symlink repositories, you should set the `symlinkDir` value in the local `packman/packman.json` file, which is in `.gitignore` by default. Alternatively, you can set the its value in the global `~/.composer/composer.json`.
+**Note:** If the `symlinkDir` value is set, the committed `composer.json`, it should be given as a relative path (either `../` or `~/`). By doing that, other members of your team will be able to have a similar configuration for them. If you don't expect other team members to also use symlink repositories, you should set the `symlinkDir` value in the local `packman/packman.json` file, which is in `.gitignore` by default. Alternatively, you can set the its value in the global `~/.composer/composer.json`.
 
 ### Manual symlink repositories
 
@@ -93,7 +123,7 @@ If you prefer defining your symlink repositories explicitly, it's a good idea to
     "repositories": [
         {
             "type": "path",
-            "url": "~/my-org/my-repo",
+            "url": "../",
             "options": {
                 "symlink": true
             }
@@ -120,7 +150,7 @@ to get the package defined as the latest development commit of the master branch
 
 ### Deployment to Prod
 
-It's not a good idea to use symlink repositories to deploy to a production machine. The symlink repositories are only meant for local development. In contrast, <img src="docs/assets/proximify_packman.svg" width="25px" alt="packman icon" style="vertical-align:middle"> can be used to deploy to a production server (e.g. as a zip bundle). But, if the intent is to fetch the packages on the production server, then the default Packman solution of hosting private packages on `localhost` won't work if that URL is not authenticated in some way. In other words, **Packman is for local machines only**. If used on a server, the Packman URL (`localUrl`) should only be accessible **only** from the local machine.
+It's not a good idea to use symlink repositories to deploy to a production machine. The symlink repositories are only meant for local development. In contrast, Packman can be used to deploy to a production server (e.g. as a zip bundle). But, if the intent is to fetch the packages on the production server, then the default Packman solution of hosting private packages on `localhost` won't work if that URL is not authenticated in some way. In other words, **Packman is for local machines only**. If used on a server, the Packman URL (`localUrl`) should only be accessible **only** from the local machine.
 
 ## Options
 
