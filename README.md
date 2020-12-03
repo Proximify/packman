@@ -106,6 +106,8 @@ Packman adds the **symlink repositories** to the active composer object automati
 
 **Note:** If the `symlinkDir` value is set, the committed `composer.json`, it should be given as a relative path (either `../` or `~/`). By doing that, other members of your team will be able to have a similar configuration for them. If you don't expect other team members to also use symlink repositories, you should set the `symlinkDir` value in the local `packman/packman.json` file, which is in `.gitignore` by default. Alternatively, you can set the its value in the global `~/.composer/composer.json`.
 
+> Make sure that the composer.json files at "../repo-name1" and "../repo-name2" set "name" to "my-org/repo-name1" and "my-org/repo-name2", respectively. In other words, the name of a package is defined by its composer file and not by the path to its repo.
+
 ### Manual symlink repositories
 
 If you prefer defining your symlink repositories explicitly, it's a good idea to define them in the **global** composer settings. In that way, you don't have to remember to remove the repository specs from each local `composer.json` that needs it.
@@ -129,7 +131,7 @@ If you prefer defining your symlink repositories explicitly, it's a good idea to
 }
 ```
 
-The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything else stays as shown. **Make sure that the `composer.json` at "../my-repo" sets "name" to "my-org/my-repo".**
+The variables here are: `my-org`, `my-repo`, and the value of `url`. Everything else stays as shown.
 
 > Use a relative path for the "url" that works for all the members of your dev team. You can either start from your home directory with `~/` or you can make it relative to the root project with `../`. The `~/` is convenient for packages installed globally. The `../` allows for more freedom as long as the package is not installed globally or that the relative path also works from the global `.composer` folder.
 
